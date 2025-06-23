@@ -172,7 +172,8 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
         tickValues: 5, // Default to 5 ticks
         legend: 'Pace per 500m',
         legendOffset: -60,
-        legendPosition: 'middle' as const
+        legendPosition: 'middle' as const,
+        format: formatPaceAxis
       };
     }
 
@@ -206,7 +207,8 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
       tickValues: tickCount,
       legend: 'Pace per 500m',
       legendOffset: isMobile ? -50 : -60,
-      legendPosition: 'middle' as const
+      legendPosition: 'middle' as const,
+      format: formatPaceAxis
     };
   }, [chartData]);
 
