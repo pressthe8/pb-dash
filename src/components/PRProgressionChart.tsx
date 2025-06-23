@@ -33,6 +33,11 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
     return `${startYear}/${seasonId.slice(-2)}`;
   };
 
+  // Format pace for axis labels - moved before useMemo hooks that reference it
+  const formatPaceAxis = (value: number): string => {
+    return formatTime(Math.round(value * 10)); // Convert back to tenths for formatting
+  };
+
   // Prepare chart data using pace for consistency
   const chartData = useMemo(() => {
     if (!events || events.length === 0) return [];
@@ -337,11 +342,6 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
         )}
       </div>
     );
-  };
-
-  // Format pace for axis labels
-  const formatPaceAxis = (value: number): string => {
-    return formatTime(Math.round(value * 10)); // Convert back to tenths for formatting
   };
 
   if (!events || events.length === 0) {
