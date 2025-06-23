@@ -165,6 +165,51 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
     return config;
   }, [chartData]);
 
+  // Smart vertical axis configuration based on data range and screen size
+  const getVerticalAxisConfiguration = useMemo(() => {
+    if (!chartData[0] || chartData[0].data.length === 0) {
+      return {
+        tickValues: 5, // Default to 5 ticks
+        legend: 'Pace per 500m',
+        legendOffset: -60,
+        legendPosition: 'middle' as const
+      };
+    }
+
+    const dataPoints = chartData[0].data;
+    const paceValues = dataPoints.map(point => point.y);
+    const minPace = Math.min(...paceValues);
+    const maxPace = Math.max(...paceValues);
+    const paceRange = maxPace - minPace;
+    
+    // Detect mobile
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+    
+    // Calculate optimal number of ticks based on range and screen size
+    let tickCount;
+    
+    if (paceRange <= 5) {
+      // Small range (5 seconds or less): More ticks are fine
+      tickCount = isMobile ? 4 : 6;
+    } else if (paceRange <= 15) {
+      // Medium range (5-15 seconds): Moderate number of ticks
+      tickCount = isMobile ? 3 : 5;
+    } else if (paceRange <= 30) {
+      // Large range (15-30 seconds): Fewer ticks
+      tickCount = isMobile ? 3 : 4;
+    } else {
+      // Very large range (30+ seconds): Minimal ticks
+      tickCount = isMobile ? 2 : 3;
+    }
+    
+    return {
+      tickValues: tickCount,
+      legend: 'Pace per 500m',
+      legendOffset: isMobile ? -50 : -60,
+      legendPosition: 'middle' as const
+    };
+  }, [chartData]);
+
   // Responsive margins
   const responsiveMargins = useMemo(() => {
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
@@ -361,12 +406,7 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
         axisTop={null}
         axisRight={null}
         axisBottom={getAxisConfiguration}
-        axisLeft={{
-          legend: 'Pace per 500m',
-          legendOffset: typeof window !== 'undefined' && window.innerWidth < 640 ? -50 : -60,
-          legendPosition: 'middle',
-          format: formatPaceAxis
-        }}
+        axisLeft={getVerticalAxisConfiguration}
         layers={[
           'grid',
           'markers',
