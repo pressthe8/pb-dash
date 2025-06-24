@@ -5,7 +5,9 @@ import { FirebaseService } from '../services/firebaseService';
 import { CloudFunctionsService } from '../services/cloudFunctions';
 import { DataCacheService } from '../services/dataCacheService';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { SportFilterToggle } from '../components/SportFilterToggle';
 import { UserProfile } from '../types/personalRecords';
+import { SportType } from '../types/sports';
 import { 
   User, 
   Calendar, 
@@ -21,9 +23,10 @@ import {
   Shield
 } from 'lucide-react';
 
-// Extended profile interface that includes sync timestamp
+// Extended profile interface that includes sync timestamp and default sport
 interface ExtendedUserProfile extends UserProfile {
   last_sync_at?: string;
+  default_sport?: SportType;
 }
 
 export const ProfilePage: React.FC = () => {
@@ -118,6 +121,34 @@ export const ProfilePage: React.FC = () => {
       
     } catch (error) {
       console.error('Error updating season view preference:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDefaultSportChange = async (sport: SportType) => {
+    if (!user?.uid) return;
+    
+    try {
+      setSaving(true);
+      
+      // Update profile in Firebase
+      await firebaseService.createUserProfile(user.uid);
+      const userDocRef = doc(firebaseService.db, 'users', user.uid);
+      await updateDoc(userDocRef, {
+        default_sport: sport,
+        last_updated: new Date().toISOString()
+      });
+      
+      // Update local state
+      const updatedProfile = profile ? { ...profile, default_sport: sport } : { default_sport: sport } as ExtendedUserProfile;
+      setProfile(updatedProfile);
+      
+      // Reason: Update cache with new profile data
+      await cacheService.setCachedData(user.uid, 'userProfile', updatedProfile);
+      
+    } catch (error) {
+      console.error('Error updating default sport preference:', error);
     } finally {
       setSaving(false);
     }
@@ -387,6 +418,19 @@ export const ProfilePage: React.FC = () => {
                 Year
               </button>
             </div>
+          </div>
+
+          {/* Default Sport Setting */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-medium text-slate-900">Default Sport</h3>
+              <p className="text-sm text-slate-600">Choose which sport to show by default when you sign in</p>
+            </div>
+            <SportFilterToggle
+              selectedSport={profile?.default_sport || 'rower'}
+              onSportChange={handleDefaultSportChange}
+              size="small"
+            />
           </div>
 
           {/* Manual Sync Buttons */}

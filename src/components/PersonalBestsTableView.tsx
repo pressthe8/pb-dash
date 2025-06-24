@@ -8,6 +8,7 @@ interface PersonalBestsTableViewProps {
   prStats: PRStats[];
   loading: boolean;
   allPREvents: PREvent[];
+  emptyStateMessage?: string;
 }
 
 interface DetailViewData {
@@ -23,7 +24,8 @@ type SortDirection = 'asc' | 'desc';
 export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({ 
   prStats, 
   loading,
-  allPREvents
+  allPREvents,
+  emptyStateMessage = "No Personal Bests Yet"
 }) => {
   // State management
   const [viewMode, setViewMode] = useState<ViewMode>('table');
@@ -343,7 +345,7 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
           <h2 className="text-xl font-semibold text-slate-900">Personal Bests</h2>
         </div>
         <div className="p-6 text-center">
-          <h3 className="text-lg font-medium text-slate-900 mb-2">No Personal Bests Yet</h3>
+          <h3 className="text-lg font-medium text-slate-900 mb-2">{emptyStateMessage}</h3>
           <p className="text-slate-600">
             Complete some standard distance or time workouts to start tracking your PBs.
           </p>
