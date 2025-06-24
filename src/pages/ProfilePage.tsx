@@ -41,6 +41,7 @@ export const ProfilePage: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const firebaseService = FirebaseService.getInstance();
   const cloudFunctions = CloudFunctionsService.getInstance();
@@ -202,15 +203,36 @@ export const ProfilePage: React.FC = () => {
     if (!user || deleteConfirmText !== 'DELETE') return;
     
     try {
-      // Delete all user data from Firebase
-      // This would need to be implemented as a Cloud Function for complete cleanup
-      console.log('Account deletion would be implemented here');
-      // For now, just show that it would work
-      alert('Account deletion would be implemented here. This would remove all your data permanently.');
+      setDeleting(true);
+      console.log('Starting account deletion process');
+      
+      // Call Cloud Function to delete all user data
+      await cloudFunctions.deleteUserAccount(user.uid);
+      console.log('Cloud Function deletion completed');
+      
+      // Clear all local caches and storage
+      await cacheService.invalidateAllCache();
+      localStorage.clear();
+      sessionStorage.clear();
+      console.log('Local storage cleared');
+      
+      // Note: Firebase Auth user deletion is handled by the Cloud Function
+      // The user will be automatically signed out when their account is deleted
+      
       setShowDeleteConfirm(false);
       setDeleteConfirmText('');
+      
+      // Show success message briefly before redirect
+      alert('Account deleted successfully. You will be redirected to the login page.');
+      
+      // Redirect to login page
+      window.location.href = '/login';
+      
     } catch (error) {
       console.error('Error deleting account:', error);
+      alert(`Account deletion failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -475,10 +497,15 @@ export const ProfilePage: React.FC = () => {
             </div>
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              className="flex items-center space-x-2 px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200"
+              disabled={deleting}
+              className="flex items-center space-x-2 px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Trash2 className="w-4 h-4" />
-              <span>Delete</span>
+              {deleting ? (
+                <LoadingSpinner size="sm" className="text-white" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+              <span>{deleting ? 'Deleting...' : 'Delete'}</span>
             </button>
           </div>
         </div>
@@ -545,7 +572,8 @@ export const ProfilePage: React.FC = () => {
                   type="text"
                   value={deleteConfirmText}
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  disabled={deleting}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 disabled:opacity-50"
                   placeholder="DELETE"
                 />
               </div>
@@ -556,16 +584,24 @@ export const ProfilePage: React.FC = () => {
                     setShowDeleteConfirm(false);
                     setDeleteConfirmText('');
                   }}
-                  className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors duration-200"
+                  disabled={deleting}
+                  className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors duration-200 disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleDeleteAccount}
-                  disabled={deleteConfirmText !== 'DELETE'}
-                  className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={deleteConfirmText !== 'DELETE' || deleting}
+                  className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
                 >
-                  Delete Account
+                  {deleting ? (
+                    <>
+                      <LoadingSpinner size="sm" className="text-white" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <span>Delete Account</span>
+                  )}
                 </button>
               </div>
             </div>
