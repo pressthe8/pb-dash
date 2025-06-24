@@ -52,6 +52,16 @@ interface ProcessNewResultsAndRecalculateResponse {
   newPREventsCreated: number;
 }
 
+interface DeleteUserAccountRequest {
+  userId: string;
+}
+
+interface DeleteUserAccountResponse {
+  success: boolean;
+  deletedCollections: string[];
+  deletedDocuments: number;
+}
+
 export class CloudFunctionsService {
   private static instance: CloudFunctionsService;
   
@@ -180,6 +190,27 @@ export class CloudFunctionsService {
       return result.data;
     } catch (error) {
       console.error('Smart PR processing and recalculation failed:', error);
+      this.handleCloudFunctionError(error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete user account and all associated data
+   */
+  async deleteUserAccount(userId: string): Promise<DeleteUserAccountResponse> {
+    try {
+      console.log('Triggering account deletion via Cloud Function for user:', userId);
+      
+      // Use Firebase SDK's httpsCallable which automatically handles authentication
+      const deleteFunction = httpsCallable<{ userId: string }, DeleteUserAccountResponse>(functions, 'deleteUserAccountFunction');
+      
+      const result = await deleteFunction({ userId });
+      
+      console.log('Account deletion completed:', result.data);
+      return result.data;
+    } catch (error) {
+      console.error('Account deletion failed:', error);
       this.handleCloudFunctionError(error);
       throw error;
     }

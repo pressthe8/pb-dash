@@ -27,6 +27,7 @@ exports.processNewResultsAndRecalculate = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const admin = __importStar(require("firebase-admin"));
+const paceCalculation_1 = require("./paceCalculation");
 const db = admin.firestore();
 // Define secrets for this function (even though not directly used, 
 // the function might need them for future enhancements)
@@ -156,6 +157,8 @@ async function processNewResultsForPRs(userId, newResults) {
                     const resultDate = new Date(result.date);
                     const seasonIdentifier = getSeasonIdentifier(resultDate);
                     const metricValue = getMetricValue(result, prType);
+                    // Calculate pace for this result using shared utility
+                    const paceFor500m = (0, paceCalculation_1.calculatePaceFor500m)(result.time, result.distance);
                     // Create PR event (no scope assigned yet)
                     const prEventData = {
                         user_id: userId,
@@ -167,6 +170,7 @@ async function processNewResultsForPRs(userId, newResults) {
                         achieved_at: result.date,
                         season_identifier: seasonIdentifier,
                         previous_record: null,
+                        pace_per_500m: paceFor500m,
                         created_at: admin.firestore.FieldValue.serverTimestamp(),
                         updated_at: admin.firestore.FieldValue.serverTimestamp()
                     };

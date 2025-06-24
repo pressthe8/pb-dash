@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.processNewResultsAndRecalculate = exports.processAllResultsForPRs = exports.incrementalSyncFunction = exports.initialDataLoadFunction = void 0;
+exports.deleteUserAccountFunction = exports.processNewResultsAndRecalculate = exports.processAllResultsForPRs = exports.incrementalSyncFunction = exports.initialDataLoadFunction = void 0;
 const admin = __importStar(require("firebase-admin"));
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -36,4 +36,6 @@ var processAllResultsForPRs_1 = require("./processAllResultsForPRs");
 Object.defineProperty(exports, "processAllResultsForPRs", { enumerable: true, get: function () { return processAllResultsForPRs_1.processAllResultsForPRs; } });
 var processNewResultsAndRecalculate_1 = require("./processNewResultsAndRecalculate");
 Object.defineProperty(exports, "processNewResultsAndRecalculate", { enumerable: true, get: function () { return processNewResultsAndRecalculate_1.processNewResultsAndRecalculate; } });
+var deleteUserAccount_1 = require("./deleteUserAccount");
+Object.defineProperty(exports, "deleteUserAccountFunction", { enumerable: true, get: function () { return deleteUserAccount_1.deleteUserAccount; } });
 //# sourceMappingURL=index.js.map

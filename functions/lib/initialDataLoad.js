@@ -28,6 +28,7 @@ const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const admin = __importStar(require("firebase-admin"));
 const concept2ApiService_1 = require("./concept2ApiService");
+const paceCalculation_1 = require("./paceCalculation");
 const db = admin.firestore();
 // Define secrets for this function
 const concept2ClientId = (0, params_1.defineSecret)('CONCEPT2_CLIENT_ID');
@@ -161,7 +162,9 @@ async function storeResultsOnly(userId, results) {
         const batchResults = newResults.slice(i, i + maxBatchSize);
         for (const result of batchResults) {
             const resultRef = resultsRef.doc(result.id.toString());
-            batch.set(resultRef, Object.assign(Object.assign({}, result), { firebase_user_id: userId, raw_data: result, created_at: admin.firestore.FieldValue.serverTimestamp(), updated_at: admin.firestore.FieldValue.serverTimestamp() }), { merge: true });
+            // Calculate pace for this result using shared utility
+            const paceFor500m = (0, paceCalculation_1.calculatePaceFor500m)(result.time, result.distance);
+            batch.set(resultRef, Object.assign(Object.assign({}, result), { firebase_user_id: userId, raw_data: result, pace_per_500m: paceFor500m, created_at: admin.firestore.FieldValue.serverTimestamp(), updated_at: admin.firestore.FieldValue.serverTimestamp() }), { merge: true });
             totalStored++;
         }
         await batch.commit();

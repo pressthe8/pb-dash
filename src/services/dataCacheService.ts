@@ -6,6 +6,7 @@ interface CacheEntry<T> {
   data: T;
   timestamp: number;
   expiresAt: number;
+  userId: string; // Add userId to cache entries to prevent cross-user contamination
 }
 
 // Cache configuration
@@ -80,6 +81,13 @@ export class DataCacheService {
         return null;
       }
 
+      // Reason: Verify cache entry belongs to the correct user to prevent cross-user contamination
+      if (entry.userId !== userId) {
+        console.log(`Cache invalidated: ${dataType} data belongs to different user (expected: ${userId}, found: ${entry.userId})`);
+        userCache.delete(dataType);
+        return null;
+      }
+
       const now = Date.now();
       const effectiveMaxAge = maxAge || this.config.defaultTTL;
       const isExpired = (now - entry.timestamp) > effectiveMaxAge || now > entry.expiresAt;
@@ -125,7 +133,8 @@ export class DataCacheService {
       const entry: CacheEntry<T> = {
         data,
         timestamp: now,
-        expiresAt: now + ttl
+        expiresAt: now + ttl,
+        userId // Reason: Store userId with cache entry to prevent cross-user contamination
       };
 
       userCache.set(dataType, entry);
@@ -216,6 +225,9 @@ export class DataCacheService {
 
     const entry = userCache.get(dataType);
     if (!entry) return false;
+
+    // Reason: Verify cache entry belongs to the correct user
+    if (entry.userId !== userId) return false;
 
     const now = Date.now();
     const effectiveMaxAge = maxAge || this.config.defaultTTL;
@@ -372,6 +384,13 @@ export class DataCacheService {
           try {
             const entry: CacheEntry<any> = JSON.parse(stored);
             
+            // Reason: Verify the cached entry belongs to the current user to prevent cross-user contamination
+            if (entry.userId && entry.userId !== userId) {
+              console.log(`Removing cached ${dataType} from sessionStorage - belongs to different user (expected: ${userId}, found: ${entry.userId})`);
+              sessionStorage.removeItem(key);
+              continue;
+            }
+            
             // Check if still valid
             const now = Date.now();
             if (now <= entry.expiresAt) {
@@ -379,6 +398,11 @@ export class DataCacheService {
               if (!userCache) {
                 userCache = new Map();
                 this.cache.set(userId, userCache);
+              }
+              
+              // Reason: Ensure userId is set on restored entries (for backward compatibility)
+              if (!entry.userId) {
+                entry.userId = userId;
               }
               
               userCache.set(dataType, entry);
