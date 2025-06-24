@@ -5,7 +5,7 @@ import { FirebaseService } from '../services/firebaseService';
 import { CloudFunctionsService } from '../services/cloudFunctions';
 import { DataCacheService } from '../services/dataCacheService';
 import { LoadingSpinner } from '../components/LoadingSpinner';
-import { UserProfile } from '../types/personalRecords';
+import { UserProfile, SportType, SPORT_MAPPING } from '../types/personalRecords';
 import { 
   User, 
   Calendar, 
@@ -118,6 +118,34 @@ export const ProfilePage: React.FC = () => {
       
     } catch (error) {
       console.error('Error updating season view preference:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDefaultSportChange = async (sport: SportType) => {
+    if (!user?.uid) return;
+    
+    try {
+      setSaving(true);
+      
+      // Update profile in Firebase
+      await firebaseService.createUserProfile(user.uid);
+      const userDocRef = doc(firebaseService.db, 'users', user.uid);
+      await updateDoc(userDocRef, {
+        default_sport: sport,
+        last_updated: new Date().toISOString()
+      });
+      
+      // Update local state
+      const updatedProfile = profile ? { ...profile, default_sport: sport } : { default_sport: sport } as ExtendedUserProfile;
+      setProfile(updatedProfile);
+      
+      // Reason: Update cache with new profile data
+      await cacheService.setCachedData(user.uid, 'userProfile', updatedProfile);
+      
+    } catch (error) {
+      console.error('Error updating default sport preference:', error);
     } finally {
       setSaving(false);
     }
@@ -357,6 +385,30 @@ export const ProfilePage: React.FC = () => {
         </div>
         
         <div className="p-6 space-y-6">
+          {/* Default Sport Setting */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-medium text-slate-900">Default Sport</h3>
+              <p className="text-sm text-slate-600">Choose which sport to show by default on dashboard</p>
+            </div>
+            <div className="flex items-center bg-slate-100 rounded-lg p-1">
+              {(['rower', 'bikeerg', 'skierg'] as SportType[]).map((sport) => (
+                <button
+                  key={sport}
+                  onClick={() => handleDefaultSportChange(sport)}
+                  disabled={saving}
+                  className={`px-3 py-1 rounded-md text-sm font-medium transition-colors duration-200 ${
+                    profile?.default_sport === sport
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {SPORT_MAPPING[sport]}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Season vs Year Toggle */}
           <div className="flex items-center justify-between">
             <div>

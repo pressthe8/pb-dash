@@ -54,4 +54,24 @@ export interface UserProfile {
   last_updated: string;
   season_view: boolean;         // Show season view by default
   private: boolean;             // Profile privacy setting
+  default_sport?: SportType;    // Default sport for dashboard
 }
+
+// NEW: Sport filtering types
+export type SportType = 'rower' | 'bikeerg' | 'skierg';
+export type SportDisplayType = 'Row' | 'Bike' | 'Ski';
+
+// Sport mapping constant
+export const SPORT_MAPPING: Record<SportType, SportDisplayType> = {
+  'rower': 'Row',
+  'bikeerg': 'Bike', 
+  'skierg': 'Ski'
+};
+
+// Helper function to determine sport from activity key
+export const getSportFromActivityKey = (activityKey: string): SportType => {
+  if (activityKey.includes('_row')) return 'rower';
+  if (activityKey.includes('_bike')) return 'bikeerg';
+  if (activityKey.includes('_ski')) return 'skierg';
+  return 'rower'; // fallback
+};

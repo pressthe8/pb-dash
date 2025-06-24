@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ChevronDown, ArrowLeft, Trophy, Clock, Zap, Target, Mountain, MapPin } from 'lucide-react';
-import { PRStats, PREvent } from '../types/personalRecords';
+import { PRStats, PREvent, SportType, SPORT_MAPPING } from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
 import { PRProgressionChart } from './PRProgressionChart';
 
@@ -8,6 +8,7 @@ interface PersonalBestsTableViewProps {
   prStats: PRStats[];
   loading: boolean;
   allPREvents: PREvent[];
+  selectedSport?: SportType;
 }
 
 interface DetailViewData {
@@ -23,7 +24,8 @@ type SortDirection = 'asc' | 'desc';
 export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({ 
   prStats, 
   loading,
-  allPREvents
+  allPREvents,
+  selectedSport
 }) => {
   // State management
   const [viewMode, setViewMode] = useState<ViewMode>('table');
@@ -343,9 +345,11 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
           <h2 className="text-xl font-semibold text-slate-900">Personal Bests</h2>
         </div>
         <div className="p-6 text-center">
-          <h3 className="text-lg font-medium text-slate-900 mb-2">No Personal Bests Yet</h3>
+          <h3 className="text-lg font-medium text-slate-900 mb-2">
+            No Personal Bests for {selectedSport ? SPORT_MAPPING[selectedSport] : 'Selected Sport'} Yet
+          </h3>
           <p className="text-slate-600">
-            Complete some standard distance or time workouts to start tracking your PBs.
+            Complete some {selectedSport ? SPORT_MAPPING[selectedSport].toLowerCase() : 'selected sport'} workouts to start tracking your PBs.
           </p>
         </div>
       </div>
@@ -475,7 +479,9 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
             </div>
             <div>
               <h2 className="text-xl font-semibold text-slate-900">Personal Bests</h2>
-              <p className="text-sm text-slate-600">Your best performances across all events</p>
+              <p className="text-sm text-slate-600">
+                Your best {selectedSport ? SPORT_MAPPING[selectedSport].toLowerCase() : ''} performances across all events
+              </p>
             </div>
           </div>
           

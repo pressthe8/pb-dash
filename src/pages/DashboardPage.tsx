@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { auth } from '../config/firebase';
 import { usePersonalRecords } from '../hooks/usePersonalRecords';
@@ -10,6 +10,7 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { PersonalRecordsCard } from '../components/PersonalRecordsCard';
 import { PersonalBestsTableView } from '../components/PersonalBestsTableView';
 import { StoredResult } from '../types/concept2';
+import { SportType, SPORT_MAPPING, getSportFromActivityKey } from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
 import { Rows as RowingBoat, TrendingUp, Link, CheckCircle, AlertTriangle, Trophy, Ruler, Clock } from 'lucide-react';
 
@@ -42,6 +43,11 @@ export const DashboardPage: React.FC = () => {
     averageDistance: 0
   });
 
+  // Sport filtering state
+  const [selectedSport, setSelectedSport] = useState<SportType>('rower');
+  const [hasLoadedSportPreference, setHasLoadedSportPreference] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
+
   // DEV ONLY: Toggle between old and new PB views
   const [useNewTableView, setUseNewTableView] = useState(true);
 
@@ -49,6 +55,41 @@ export const DashboardPage: React.FC = () => {
   const firebaseService = FirebaseService.getInstance();
   const cloudFunctions = CloudFunctionsService.getInstance();
   const cacheService = DataCacheService.getInstance();
+
+  // Reason: Determine smart default sport based on result counts
+  const determineDefaultSport = useCallback((results: StoredResult[], profileSetting?: SportType): SportType => {
+    if (profileSetting) return profileSetting;
+    
+    // Count results by sport
+    const sportCounts = results.reduce((acc, result) => {
+      acc[result.type] = (acc[result.type] || 0) + 1;
+      return acc;
+    }, {} as Record<SportType, number>);
+    
+    // Return sport with highest count, fallback to 'rower'
+    const entries = Object.entries(sportCounts) as [SportType, number][];
+    if (entries.length === 0) return 'rower';
+    
+    return entries.reduce((a, b) => a[1] > b[1] ? a : b)[0];
+  }, []);
+
+  // Reason: Load sport preference from session storage and profile
+  useEffect(() => {
+    if (!hasLoadedSportPreference && allResults.length > 0) {
+      const sessionSport = localStorage.getItem('dashboard_sport_filter') as SportType;
+      const defaultSport = determineDefaultSport(allResults, userProfile?.default_sport);
+      
+      setSelectedSport(sessionSport || defaultSport);
+      setHasLoadedSportPreference(true);
+    }
+  }, [allResults, userProfile, hasLoadedSportPreference, determineDefaultSport]);
+
+  // Reason: Persist sport selection to session storage
+  useEffect(() => {
+    if (hasLoadedSportPreference) {
+      localStorage.setItem('dashboard_sport_filter', selectedSport);
+    }
+  }, [selectedSport, hasLoadedSportPreference]);
 
   // Reason: Memoize calculateStats to prevent unnecessary recreations
   const calculateStats = useCallback((results: StoredResult[]): DashboardStats => {
@@ -65,6 +106,27 @@ export const DashboardPage: React.FC = () => {
     };
   }, []);
 
+  // Reason: Filter data based on selected sport
+  const filteredResults = useMemo(() => 
+    allResults.filter(result => result.type === selectedSport), 
+    [allResults, selectedSport]
+  );
+
+  const filteredStats = useMemo(() => 
+    calculateStats(filteredResults), 
+    [filteredResults, calculateStats]
+  );
+
+  const filteredPRStats = useMemo(() => 
+    prStats.filter(stat => getSportFromActivityKey(stat.activity_key) === selectedSport), 
+    [prStats, selectedSport]
+  );
+
+  const filteredPREvents = useMemo(() => 
+    allPREvents.filter(event => getSportFromActivityKey(event.activity_key) === selectedSport), 
+    [allPREvents, selectedSport]
+  );
+
   // Reason: Memoize loadDashboardData to prevent unnecessary recreations
   const loadDashboardData = useCallback(async () => {
     if (!user?.uid) {
@@ -75,6 +137,10 @@ export const DashboardPage: React.FC = () => {
     try {
       setLoading(true);
       console.log('Loading dashboard data for connected user');
+      
+      // Load user profile for sport preference
+      const profile = await firebaseService.getUserProfile(user.uid);
+      setUserProfile(profile);
       
       // Reason: Try to get cached data first for instant response
       const cachedResults = await cacheService.getCachedData<StoredResult[]>(user.uid, 'allResults');
@@ -103,7 +169,7 @@ export const DashboardPage: React.FC = () => {
       // Cache the results for future use
       await cacheService.setCachedData(user.uid, 'allResults', results);
       
-      // Calculate and cache stats
+      // Calculate and cache stats (full stats, not filtered)
       const calculatedStats = calculateStats(results);
       setStats(calculatedStats);
       await cacheService.setCachedData(user.uid, 'dashboardStats', calculatedStats);
@@ -267,6 +333,27 @@ export const DashboardPage: React.FC = () => {
           )}
         </div>
 
+        {/* Sport Filter - Prominent Dashboard Filter */}
+        <div className="flex items-center justify-center">
+          <div className="bg-white rounded-xl p-2 shadow-sm border border-slate-200">
+            <div className="flex items-center space-x-1">
+              {(['rower', 'bikeerg', 'skierg'] as SportType[]).map((sport) => (
+                <button
+                  key={sport}
+                  onClick={() => setSelectedSport(sport)}
+                  className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                    selectedSport === sport
+                      ? 'bg-blue-500 text-white shadow-md'
+                      : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                  }`}
+                >
+                  {SPORT_MAPPING[sport]}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* PR Error Alert */}
         {prError && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
@@ -287,14 +374,14 @@ export const DashboardPage: React.FC = () => {
           </div>
         )}
 
-        {/* Stats Cards - Updated for mobile 2x2 grid */}
+        {/* Stats Cards - Updated for mobile 2x2 grid - Now showing filtered stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
           <div className="bg-white rounded-xl p-4 lg:p-6 shadow-sm border border-slate-200">
             <div className="flex items-center justify-between mb-3 lg:mb-4">
               <div className="p-1.5 lg:p-2 bg-blue-100 rounded-lg">
                 <TrendingUp className="w-4 h-4 lg:w-6 lg:h-6 text-blue-600" />
               </div>
-              <span className="text-lg lg:text-2xl font-bold text-slate-900">{stats.totalWorkouts}</span>
+              <span className="text-lg lg:text-2xl font-bold text-slate-900">{filteredStats.totalWorkouts}</span>
             </div>
             <h3 className="text-xs lg:text-sm font-medium text-slate-600">Total Workouts</h3>
           </div>
@@ -305,7 +392,7 @@ export const DashboardPage: React.FC = () => {
                 <Ruler className="w-4 h-4 lg:w-6 lg:h-6 text-green-600" />
               </div>
               <span className="text-lg lg:text-2xl font-bold text-slate-900">
-                {formatDistance(stats.totalDistance)}
+                {formatDistance(filteredStats.totalDistance)}
               </span>
             </div>
             <h3 className="text-xs lg:text-sm font-medium text-slate-600">Total Distance</h3>
@@ -317,7 +404,7 @@ export const DashboardPage: React.FC = () => {
                 <Clock className="w-4 h-4 lg:w-6 lg:h-6 text-purple-600" />
               </div>
               <span className="text-lg lg:text-2xl font-bold text-slate-900">
-                {formatTime(stats.totalTime)}
+                {formatTime(filteredStats.totalTime)}
               </span>
             </div>
             <h3 className="text-xs lg:text-sm font-medium text-slate-600">Total Time</h3>
@@ -329,18 +416,27 @@ export const DashboardPage: React.FC = () => {
                 <RowingBoat className="w-4 h-4 lg:w-6 lg:h-6 text-orange-600" />
               </div>
               <span className="text-lg lg:text-2xl font-bold text-slate-900">
-                {formatDistance(Math.round(stats.averageDistance))}
+                {formatDistance(Math.round(filteredStats.averageDistance))}
               </span>
             </div>
             <h3 className="text-xs lg:text-sm font-medium text-slate-600">Average Distance</h3>
           </div>
         </div>
 
-        {/* Personal Bests Section - Toggle between old and new views */}
+        {/* Personal Bests Section - Toggle between old and new views - Now using filtered data */}
         {useNewTableView ? (
-          <PersonalBestsTableView prStats={prStats} loading={prLoading} allPREvents={allPREvents} />
+          <PersonalBestsTableView 
+            prStats={filteredPRStats} 
+            loading={prLoading} 
+            allPREvents={filteredPREvents}
+            selectedSport={selectedSport}
+          />
         ) : (
-          <PersonalRecordsCard prStats={prStats} loading={prLoading} allPREvents={allPREvents} />
+          <PersonalRecordsCard 
+            prStats={filteredPRStats} 
+            loading={prLoading} 
+            allPREvents={filteredPREvents} 
+          />
         )}
       </div>
     </>
