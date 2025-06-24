@@ -117,37 +117,15 @@ export const DashboardPage: React.FC = () => {
     [filteredResults, calculateStats]
   );
 
-  // Reason: Updated PR filtering to use a more robust approach
-  // Instead of relying on activity key parsing, we'll filter PR events by checking
-  // if they correspond to results of the selected sport type
-  const filteredPRStats = useMemo(() => {
-    // Get all result IDs for the selected sport
-    const selectedSportResultIds = new Set(
-      filteredResults.map(result => result.id.toString())
-    );
-    
-    // Filter PR stats by checking if they have events for results of the selected sport
-    return prStats.filter(stat => {
-      // Check if this PR stat has any events that correspond to selected sport results
-      const hasSelectedSportEvents = allPREvents.some(event => 
-        event.activity_key === stat.activity_key && 
-        selectedSportResultIds.has(event.results_id)
-      );
-      return hasSelectedSportEvents;
-    });
-  }, [prStats, allPREvents, filteredResults]);
+  const filteredPRStats = useMemo(() => 
+    prStats.filter(stat => getSportFromActivityKey(stat.activity_key) === selectedSport), 
+    [prStats, selectedSport]
+  );
 
-  const filteredPREvents = useMemo(() => {
-    // Get all result IDs for the selected sport
-    const selectedSportResultIds = new Set(
-      filteredResults.map(result => result.id.toString())
-    );
-    
-    // Filter PR events by checking if they correspond to results of the selected sport
-    return allPREvents.filter(event => 
-      selectedSportResultIds.has(event.results_id)
-    );
-  }, [allPREvents, filteredResults]);
+  const filteredPREvents = useMemo(() => 
+    allPREvents.filter(event => getSportFromActivityKey(event.activity_key) === selectedSport), 
+    [allPREvents, selectedSport]
+  );
 
   // Reason: Memoize loadDashboardData to prevent unnecessary recreations
   const loadDashboardData = useCallback(async () => {

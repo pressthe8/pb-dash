@@ -60,9 +60,3 @@
 - [x] **COMPLETED**: Added sport-specific icons (rowing boat, bike, mountain) to filter buttons
 - [x] **COMPLETED**: Enhanced sport filter with gradient backgrounds and hover effects
 - [x] **COMPLETED**: Improved visual hierarchy with larger, more prominent sport selection
-
-### Sport Filtering Bug Fix - January 21, 2025 7:15 PM
-- [x] **COMPLETED**: Fixed BikeErg filtering logic that was causing inconsistency between stats and PB table
-- [x] **COMPLETED**: Updated `getSportFromActivityKey` function to properly handle BikeErg and SkiErg activity keys
-- [x] **COMPLETED**: Implemented more robust PR filtering using result IDs instead of activity key parsing
-- [x] **COMPLETED**: Ensured stats cards and PB table use consistent filtering logic based on actual result data

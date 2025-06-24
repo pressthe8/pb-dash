@@ -69,22 +69,9 @@ export const SPORT_MAPPING: Record<SportType, SportDisplayType> = {
 };
 
 // Helper function to determine sport from activity key
-// Reason: Updated logic to properly handle BikeErg and SkiErg activity keys
 export const getSportFromActivityKey = (activityKey: string): SportType => {
-  // Check for BikeErg activities (they might use 'bikeerg' or 'bike' in the key)
-  if (activityKey.includes('_bikeerg') || activityKey.includes('_bike')) return 'bikeerg';
-  
-  // Check for SkiErg activities (they might use 'skierg' or 'ski' in the key)  
-  if (activityKey.includes('_skierg') || activityKey.includes('_ski')) return 'skierg';
-  
-  // Check for Rowing activities (most common, includes '_row' suffix)
   if (activityKey.includes('_row')) return 'rower';
-  
-  // Fallback: if no specific sport identifier, assume rowing
-  return 'rower';
-};
-
-// Alternative approach: Use PR type sport field directly if available
-export const getSportFromPRType = (prType: { sport: string }): SportType => {
-  return prType.sport as SportType;
+  if (activityKey.includes('_bike')) return 'bikeerg';
+  if (activityKey.includes('_ski')) return 'skierg';
+  return 'rower'; // fallback
 };
