@@ -1,9 +1,0 @@
-{
-  "name": "pr-types-uploader",
-  "version": "1.0.0",
-  "description": "Script to upload PR types to Firestore",
-  "main": "uploadPRTypes.js",
-  "dependencies": {
-    "firebase-admin": "^12.0.0"
-  }
-}
