@@ -22,18 +22,4 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-
-# Environment variables
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Firebase
-.firebase
-.firebaserc
-
-# Service account keys (NEVER commit these!)
-service-account-key.json
-*-service-account-key.json

@@ -1,31 +1,149 @@
 const admin = require('firebase-admin');
-const fs = require('fs');
-const path = require('path');
 
 // Initialize Firebase Admin with your project configuration
+// This uses the same project ID from your existing Firebase config
 admin.initializeApp({
   projectId: 'bolt-c2', // Your Firebase project ID from firebase.json
 });
 
 const db = admin.firestore();
 
+const prTypes = [
+  {
+    "activity_name": "100m Row",
+    "activity_key": "100m_row",
+    "sport": "rower",
+    "metric_type": "time",
+    "target_distance": 100,
+    "target_time": null,
+    "is_active": true,
+    "display_order": 1
+  },
+  {
+    "activity_name": "500m Row",
+    "activity_key": "500m_row",
+    "sport": "rower",
+    "metric_type": "time",
+    "target_distance": 500,
+    "target_time": null,
+    "is_active": true,
+    "display_order": 2
+  },
+  {
+    "activity_name": "1K Row",
+    "activity_key": "1k_row",
+    "sport": "rower",
+    "metric_type": "time",
+    "target_distance": 1000,
+    "target_time": null,
+    "is_active": true,
+    "display_order": 3
+  },
+  {
+    "activity_name": "2K Row",
+    "activity_key": "2k_row",
+    "sport": "rower",
+    "metric_type": "time",
+    "target_distance": 2000,
+    "target_time": null,
+    "is_active": true,
+    "display_order": 4
+  },
+  {
+    "activity_name": "5K Row",
+    "activity_key": "5k_row",
+    "sport": "rower",
+    "metric_type": "time",
+    "target_distance": 5000,
+    "target_time": null,
+    "is_active": true,
+    "display_order": 5
+  },
+  {
+    "activity_name": "6K Row",
+    "activity_key": "6k_row",
+    "sport": "rower",
+    "metric_type": "time",
+    "target_distance": 6000,
+    "target_time": null,
+    "is_active": true,
+    "display_order": 6
+  },
+  {
+    "activity_name": "10K Row",
+    "activity_key": "10k_row",
+    "sport": "rower",
+    "metric_type": "time",
+    "target_distance": 10000,
+    "target_time": null,
+    "is_active": true,
+    "display_order": 7
+  },
+  {
+    "activity_name": "Half Marathon Row",
+    "activity_key": "half_marathon_row",
+    "sport": "rower",
+    "metric_type": "time",
+    "target_distance": 21097,
+    "target_time": null,
+    "is_active": true,
+    "display_order": 8
+  },
+  {
+    "activity_name": "Marathon Row",
+    "activity_key": "marathon_row",
+    "sport": "rower",
+    "metric_type": "time",
+    "target_distance": 42195,
+    "target_time": null,
+    "is_active": true,
+    "display_order": 9
+  },
+  {
+    "activity_name": "1min Row",
+    "activity_key": "1min_row",
+    "sport": "rower",
+    "metric_type": "distance",
+    "target_distance": null,
+    "target_time": 600,
+    "is_active": true,
+    "display_order": 10
+  },
+  {
+    "activity_name": "4min Row",
+    "activity_key": "4min_row",
+    "sport": "rower",
+    "metric_type": "distance",
+    "target_distance": null,
+    "target_time": 2400,
+    "is_active": true,
+    "display_order": 11
+  },
+  {
+    "activity_name": "30min Row",
+    "activity_key": "30min_row",
+    "sport": "rower",
+    "metric_type": "distance",
+    "target_distance": null,
+    "target_time": 18000,
+    "is_active": true,
+    "display_order": 12
+  },
+  {
+    "activity_name": "60min Row",
+    "activity_key": "60min_row",
+    "sport": "rower",
+    "metric_type": "distance",
+    "target_distance": null,
+    "target_time": 36000,
+    "is_active": true,
+    "display_order": 13
+  }
+];
+
 async function uploadPRTypes() {
   try {
     console.log('Starting PR types upload...');
-    
-    // Load PR types from JSON file
-    const jsonFilePath = path.join(__dirname, 'pr_types.json');
-    
-    if (!fs.existsSync(jsonFilePath)) {
-      console.error('Error: pr_types.json file not found!');
-      console.log('Please create a pr_types.json file in the project root directory.');
-      process.exit(1);
-    }
-    
-    const jsonData = fs.readFileSync(jsonFilePath, 'utf8');
-    const prTypes = JSON.parse(jsonData);
-    
-    console.log(`Loaded ${prTypes.length} PR types from pr_types.json`);
     
     const batch = db.batch();
     
@@ -47,13 +165,7 @@ async function uploadPRTypes() {
     });
     
   } catch (error) {
-    if (error.code === 'ENOENT') {
-      console.error('Error: pr_types.json file not found!');
-    } else if (error instanceof SyntaxError) {
-      console.error('Error: Invalid JSON in pr_types.json file:', error.message);
-    } else {
-      console.error('Error uploading PR types:', error);
-    }
+    console.error('Error uploading PR types:', error);
   } finally {
     process.exit(0);
   }
