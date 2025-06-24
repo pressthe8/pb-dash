@@ -5,6 +5,7 @@ import { FirebaseService } from '../services/firebaseService';
 import { CloudFunctionsService } from '../services/cloudFunctions';
 import { Concept2ApiService } from '../services/concept2Api';
 import { DataCacheService } from '../services/dataCacheService';
+import { DataCoordinator } from '../services/dataCoordinator';
 import { OAuthTokens } from '../types/concept2';
 
 interface AuthContextType {
@@ -49,6 +50,7 @@ export const useAuthProvider = () => {
   const cloudFunctions = CloudFunctionsService.getInstance();
   const concept2Api = Concept2ApiService.getInstance();
   const cacheService = DataCacheService.getInstance();
+  const dataCoordinator = DataCoordinator.getInstance();
 
   useEffect(() => {
     console.log('Setting up auth state listener');
@@ -63,16 +65,17 @@ export const useAuthProvider = () => {
           setBackgroundSyncTimeout(null);
         }
         
-        // Reason: Restore cache when user signs in
+        // STEP 1: Restore cache IMMEDIATELY when user signs in
+        console.log('Restoring cache from sessionStorage for user:', user.uid);
         await cacheService.restoreFromSessionStorage(user.uid);
         
-        // Check and refresh Concept2 connection
+        // STEP 2: Check and refresh Concept2 connection
         try {
           const hasValidConnection = await checkAndRefreshConcept2Connection(user.uid);
           console.log('Concept2 connection status after refresh check:', hasValidConnection);
           setConcept2Connected(hasValidConnection);
           
-          // FIXED: Only trigger background sync if we have a valid connection
+          // STEP 3: Schedule background sync with longer delay for stability
           if (hasValidConnection) {
             console.log('User has valid Concept2 connection, scheduling background sync');
             const timeoutId = setTimeout(() => {
@@ -82,7 +85,7 @@ export const useAuthProvider = () => {
               } else {
                 console.log('Background sync cancelled - connection state changed');
               }
-            }, 2000); // Increased delay to 2 seconds to allow connection state to stabilize
+            }, 3000); // Increased delay to 3 seconds for better state stability
             setBackgroundSyncTimeout(timeoutId);
           }
         } catch (error) {
@@ -100,8 +103,9 @@ export const useAuthProvider = () => {
         setConcept2Connected(false);
         setConnectionExpired(false);
         
-        // Reason: Clear all cache when user signs out
+        // Reason: Clear all cache and coordinated loads when user signs out
         await cacheService.invalidateAllCache();
+        dataCoordinator.clearAll();
       }
       setLoading(false);
     }, (error) => {
@@ -115,7 +119,7 @@ export const useAuthProvider = () => {
         clearTimeout(backgroundSyncTimeout);
       }
     };
-  }, []);
+  }, []); // Reason: Remove concept2Connected from dependencies to prevent circular updates
 
   /**
    * Get tokens with caching to reduce database calls
@@ -256,6 +260,9 @@ export const useAuthProvider = () => {
     setConnectionExpired(false);
     clearTokenCache();
     
+    // Clear coordinated loads for this user
+    dataCoordinator.clearForUser(user.uid);
+    
     // Delete tokens from Firebase
     firebaseService.deleteTokens(user.uid).catch((error) => {
       console.error('Error deleting tokens:', error);
@@ -348,9 +355,8 @@ export const useAuthProvider = () => {
         await cacheService.invalidateCache(user.uid, 'prEvents');
       }
       
-      // Reason: Always invalidate results and dashboard stats cache after sync
+      // Reason: Always invalidate results cache after sync
       await cacheService.invalidateCache(user.uid, 'allResults');
-      await cacheService.invalidateCache(user.uid, 'dashboardStats');
       
       console.log(`Sync completed successfully. Added ${syncResponse.newResultsCount || 0} new results.`);
       return syncResponse.newResultsCount;
@@ -403,7 +409,6 @@ export const useAuthProvider = () => {
         
         // Reason: Invalidate relevant cache after background sync
         await cacheService.invalidateCache(userId, 'allResults');
-        await cacheService.invalidateCache(userId, 'dashboardStats');
         
         // Process new results for PRs in background (non-blocking)
         if (syncResponse.newResultIds.length > 0) {
