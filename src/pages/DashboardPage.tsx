@@ -41,12 +41,6 @@ export const DashboardPage: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasLoadedData, setHasLoadedData] = useState(false);
-  const [stats, setStats] = useState<DashboardStats>({
-    totalWorkouts: 0,
-    totalDistance: 0,
-    totalTime: 0,
-    averageDistance: 0
-  });
 
   // DEV ONLY: Toggle between old and new PB views
   const [useNewTableView, setUseNewTableView] = useState(true);
@@ -96,13 +90,11 @@ export const DashboardPage: React.FC = () => {
       
       // Reason: Try to get cached data first for instant response
       const cachedResults = await cacheService.getCachedData<StoredResult[]>(user.uid, 'allResults');
-      const cachedStats = await cacheService.getCachedData<DashboardStats>(user.uid, 'dashboardStats');
       const cachedProfile = await cacheService.getCachedData<UserProfile>(user.uid, 'userProfile');
       
-      if (cachedResults && cachedStats) {
+      if (cachedResults) {
         console.log('Using cached dashboard data');
         setAllResults(cachedResults);
-        setStats(cachedStats);
         
         if (cachedProfile) {
           setUserProfile(cachedProfile);
@@ -133,11 +125,6 @@ export const DashboardPage: React.FC = () => {
       // Cache the results for future use
       await cacheService.setCachedData(user.uid, 'allResults', results);
       
-      // Calculate and cache stats
-      const calculatedStats = calculateStats(results);
-      setStats(calculatedStats);
-      await cacheService.setCachedData(user.uid, 'dashboardStats', calculatedStats);
-      
       // Load all PR events for the enhanced filtering
       const prEvents = await getPREvents();
       setAllPREvents(prEvents);
@@ -149,7 +136,7 @@ export const DashboardPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.uid, firebaseService, cacheService, calculateStats, getPREvents]);
+  }, [user?.uid, firebaseService, cacheService, getPREvents]);
 
   // Reason: Fixed useEffect to prevent circular dependency with hasLoadedData
   useEffect(() => {
