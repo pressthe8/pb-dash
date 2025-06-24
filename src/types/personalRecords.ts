@@ -47,12 +47,11 @@ export interface PRProgression {
   }[];
 }
 
-// User profile interface with default sport
+// NEW: User profile interface
 export interface UserProfile {
   user_id: string;              // Concept2 user ID
   created_at: string;
   last_updated: string;
   season_view: boolean;         // Show season view by default
   private: boolean;             // Profile privacy setting
-  default_sport?: 'rower' | 'bikeerg' | 'skierg'; // Default sport filter
 }

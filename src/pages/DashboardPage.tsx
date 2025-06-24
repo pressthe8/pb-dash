@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { auth } from '../config/firebase';
 import { usePersonalRecords } from '../hooks/usePersonalRecords';
-import { useSportFilter } from '../hooks/useSportFilter';
 import { Concept2ApiService } from '../services/concept2Api';
 import { FirebaseService } from '../services/firebaseService';
 import { CloudFunctionsService } from '../services/cloudFunctions';
@@ -10,11 +9,7 @@ import { DataCacheService } from '../services/dataCacheService';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { PersonalRecordsCard } from '../components/PersonalRecordsCard';
 import { PersonalBestsTableView } from '../components/PersonalBestsTableView';
-import { SportFilterToggle } from '../components/SportFilterToggle';
 import { StoredResult } from '../types/concept2';
-import { UserProfile } from '../types/personalRecords';
-import { SportType } from '../types/sports';
-import { filterResultsBySport, filterPRStatsBySport, filterPREventsBySport, calculateFilteredStats } from '../utils/sportFiltering';
 import { formatTime } from '../utils/timeFormatting';
 import { Rows as RowingBoat, TrendingUp, Link, CheckCircle, AlertTriangle, Trophy, Ruler, Clock } from 'lucide-react';
 
@@ -38,7 +33,6 @@ export const DashboardPage: React.FC = () => {
   const { prStats, loading: prLoading, error: prError, loadPRData, processNewResultsAndRecalculate, getPREvents } = usePersonalRecords();
   const [allResults, setAllResults] = useState<StoredResult[]>([]);
   const [allPREvents, setAllPREvents] = useState<any[]>([]);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasLoadedData, setHasLoadedData] = useState(false);
   const [stats, setStats] = useState<DashboardStats>({
@@ -55,18 +49,6 @@ export const DashboardPage: React.FC = () => {
   const firebaseService = FirebaseService.getInstance();
   const cloudFunctions = CloudFunctionsService.getInstance();
   const cacheService = DataCacheService.getInstance();
-
-  // Reason: Initialize sport filter with user profile default
-  const { selectedSport, selectedSportDisplay, setSelectedSport } = useSportFilter({
-    allResults,
-    userDefaultSport: userProfile?.default_sport
-  });
-
-  // Reason: Filter data based on selected sport
-  const filteredResults = filterResultsBySport(allResults, selectedSport);
-  const filteredPRStats = filterPRStatsBySport(prStats, selectedSport);
-  const filteredPREvents = filterPREventsBySport(allPREvents, selectedSport);
-  const filteredStats = calculateFilteredStats(filteredResults);
 
   // Reason: Memoize calculateStats to prevent unnecessary recreations
   const calculateStats = useCallback((results: StoredResult[]): DashboardStats => {
@@ -97,16 +79,11 @@ export const DashboardPage: React.FC = () => {
       // Reason: Try to get cached data first for instant response
       const cachedResults = await cacheService.getCachedData<StoredResult[]>(user.uid, 'allResults');
       const cachedStats = await cacheService.getCachedData<DashboardStats>(user.uid, 'dashboardStats');
-      const cachedProfile = await cacheService.getCachedData<UserProfile>(user.uid, 'userProfile');
       
       if (cachedResults && cachedStats) {
         console.log('Using cached dashboard data');
         setAllResults(cachedResults);
         setStats(cachedStats);
-        
-        if (cachedProfile) {
-          setUserProfile(cachedProfile);
-        }
         
         // Load PR events (might be cached too)
         const prEvents = await getPREvents();
@@ -118,13 +95,6 @@ export const DashboardPage: React.FC = () => {
       
       // Reason: Load fresh data if not cached
       console.log('Loading fresh dashboard data from database');
-      
-      // Load user profile
-      const profile = await firebaseService.getUserProfile(user.uid);
-      setUserProfile(profile);
-      if (profile) {
-        await cacheService.setCachedData(user.uid, 'userProfile', profile);
-      }
       
       // Load all results once and derive everything from that
       const results = await firebaseService.getAllResults(user.uid);
@@ -297,19 +267,6 @@ export const DashboardPage: React.FC = () => {
           )}
         </div>
 
-        {/* Sport Filter */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900 mb-1">Sport Filter</h2>
-            <p className="text-sm text-slate-600">View data for a specific sport</p>
-          </div>
-          <SportFilterToggle
-            selectedSport={selectedSport}
-            onSportChange={setSelectedSport}
-            size="large"
-          />
-        </div>
-
         {/* PR Error Alert */}
         {prError && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
@@ -337,10 +294,9 @@ export const DashboardPage: React.FC = () => {
               <div className="p-1.5 lg:p-2 bg-blue-100 rounded-lg">
                 <TrendingUp className="w-4 h-4 lg:w-6 lg:h-6 text-blue-600" />
               </div>
-              <span className="text-lg lg:text-2xl font-bold text-slate-900">{filteredStats.totalWorkouts}</span>
+              <span className="text-lg lg:text-2xl font-bold text-slate-900">{stats.totalWorkouts}</span>
             </div>
             <h3 className="text-xs lg:text-sm font-medium text-slate-600">Total Workouts</h3>
-            <p className="text-xs text-slate-500 mt-1">{selectedSportDisplay}</p>
           </div>
 
           <div className="bg-white rounded-xl p-4 lg:p-6 shadow-sm border border-slate-200">
@@ -349,11 +305,10 @@ export const DashboardPage: React.FC = () => {
                 <Ruler className="w-4 h-4 lg:w-6 lg:h-6 text-green-600" />
               </div>
               <span className="text-lg lg:text-2xl font-bold text-slate-900">
-                {formatDistance(filteredStats.totalDistance)}
+                {formatDistance(stats.totalDistance)}
               </span>
             </div>
             <h3 className="text-xs lg:text-sm font-medium text-slate-600">Total Distance</h3>
-            <p className="text-xs text-slate-500 mt-1">{selectedSportDisplay}</p>
           </div>
 
           <div className="bg-white rounded-xl p-4 lg:p-6 shadow-sm border border-slate-200">
@@ -362,11 +317,10 @@ export const DashboardPage: React.FC = () => {
                 <Clock className="w-4 h-4 lg:w-6 lg:h-6 text-purple-600" />
               </div>
               <span className="text-lg lg:text-2xl font-bold text-slate-900">
-                {formatTime(filteredStats.totalTime)}
+                {formatTime(stats.totalTime)}
               </span>
             </div>
             <h3 className="text-xs lg:text-sm font-medium text-slate-600">Total Time</h3>
-            <p className="text-xs text-slate-500 mt-1">{selectedSportDisplay}</p>
           </div>
 
           <div className="bg-white rounded-xl p-4 lg:p-6 shadow-sm border border-slate-200">
@@ -375,28 +329,18 @@ export const DashboardPage: React.FC = () => {
                 <RowingBoat className="w-4 h-4 lg:w-6 lg:h-6 text-orange-600" />
               </div>
               <span className="text-lg lg:text-2xl font-bold text-slate-900">
-                {formatDistance(Math.round(filteredStats.averageDistance))}
+                {formatDistance(Math.round(stats.averageDistance))}
               </span>
             </div>
             <h3 className="text-xs lg:text-sm font-medium text-slate-600">Average Distance</h3>
-            <p className="text-xs text-slate-500 mt-1">{selectedSportDisplay}</p>
           </div>
         </div>
 
         {/* Personal Bests Section - Toggle between old and new views */}
         {useNewTableView ? (
-          <PersonalBestsTableView 
-            prStats={filteredPRStats} 
-            loading={prLoading} 
-            allPREvents={filteredPREvents}
-            emptyStateMessage={`No personal bests for ${selectedSportDisplay.toLowerCase()} yet`}
-          />
+          <PersonalBestsTableView prStats={prStats} loading={prLoading} allPREvents={allPREvents} />
         ) : (
-          <PersonalRecordsCard 
-            prStats={filteredPRStats} 
-            loading={prLoading} 
-            allPREvents={filteredPREvents}
-          />
+          <PersonalRecordsCard prStats={prStats} loading={prLoading} allPREvents={allPREvents} />
         )}
       </div>
     </>
