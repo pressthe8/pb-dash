@@ -52,3 +52,11 @@
 - [x] **COMPLETED**: Updated empty states to show sport-specific messaging
 - [x] **COMPLETED**: Integrated filtering with existing cache system without breaking performance
 - [x] **COMPLETED**: Added sport type definitions and mapping constants to type system
+
+### Dashboard UI Improvements - January 21, 2025 7:00 PM
+- [x] **COMPLETED**: Removed "Dashboard - Your rowing performance at a glance" header section
+- [x] **COMPLETED**: Removed PB view toggle from dashboard (dev toggle still available)
+- [x] **COMPLETED**: Redesigned sport filter to be full width with responsive grid layout
+- [x] **COMPLETED**: Added sport-specific icons (rowing boat, bike, mountain) to filter buttons
+- [x] **COMPLETED**: Enhanced sport filter with gradient backgrounds and hover effects
+- [x] **COMPLETED**: Improved visual hierarchy with larger, more prominent sport selection

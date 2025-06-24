@@ -12,7 +12,7 @@ import { PersonalBestsTableView } from '../components/PersonalBestsTableView';
 import { StoredResult } from '../types/concept2';
 import { SportType, SPORT_MAPPING, getSportFromActivityKey } from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
-import { Rows as RowingBoat, TrendingUp, Link, CheckCircle, AlertTriangle, Trophy, Ruler, Clock } from 'lucide-react';
+import { Rows as RowingBoat, TrendingUp, Link, CheckCircle, AlertTriangle, Trophy, Ruler, Clock, Bike, Mountain } from 'lucide-react';
 
 interface DashboardStats {
   totalWorkouts: number;
@@ -233,6 +233,20 @@ export const DashboardPage: React.FC = () => {
     return `${meters}m`;
   };
 
+  // Get sport icon
+  const getSportIcon = (sport: SportType) => {
+    switch (sport) {
+      case 'rower':
+        return <RowingBoat className="w-5 h-5" />;
+      case 'bikeerg':
+        return <Bike className="w-5 h-5" />;
+      case 'skierg':
+        return <Mountain className="w-5 h-5" />;
+      default:
+        return <RowingBoat className="w-5 h-5" />;
+    }
+  };
+
   // Reason: Show loading state only when we're actually loading data for a connected user
   if (loading) {
     return (
@@ -308,49 +322,25 @@ export const DashboardPage: React.FC = () => {
       )}
 
       <div className="space-y-8">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
-            <p className="text-slate-600 mt-1">Your rowing performance at a glance</p>
-          </div>
-          
-          {/* DEV ONLY: Toggle between views */}
-          {import.meta.env.DEV && (
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-slate-600">PB View:</span>
+        {/* Sport Filter - Full Width with Icons */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <div className="grid grid-cols-3 gap-4">
+            {(['rower', 'bikeerg', 'skierg'] as SportType[]).map((sport) => (
               <button
-                onClick={() => setUseNewTableView(!useNewTableView)}
-                className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors duration-200 ${
-                  useNewTableView 
-                    ? 'bg-blue-100 text-blue-700' 
-                    : 'bg-slate-100 text-slate-700'
+                key={sport}
+                onClick={() => setSelectedSport(sport)}
+                className={`flex items-center justify-center space-x-3 py-4 px-6 rounded-xl font-semibold transition-all duration-200 ${
+                  selectedSport === sport
+                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg transform scale-105'
+                    : 'bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                {useNewTableView ? 'Table' : 'Cards'}
+                <div className={`${selectedSport === sport ? 'text-white' : 'text-slate-500'}`}>
+                  {getSportIcon(sport)}
+                </div>
+                <span className="text-lg">{SPORT_MAPPING[sport]}</span>
               </button>
-            </div>
-          )}
-        </div>
-
-        {/* Sport Filter - Prominent Dashboard Filter */}
-        <div className="flex items-center justify-center">
-          <div className="bg-white rounded-xl p-2 shadow-sm border border-slate-200">
-            <div className="flex items-center space-x-1">
-              {(['rower', 'bikeerg', 'skierg'] as SportType[]).map((sport) => (
-                <button
-                  key={sport}
-                  onClick={() => setSelectedSport(sport)}
-                  className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
-                    selectedSport === sport
-                      ? 'bg-blue-500 text-white shadow-md'
-                      : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
-                  }`}
-                >
-                  {SPORT_MAPPING[sport]}
-                </button>
-              ))}
-            </div>
+            ))}
           </div>
         </div>
 
