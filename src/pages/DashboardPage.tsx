@@ -7,7 +7,6 @@ import { Concept2ApiService } from '../services/concept2Api';
 import { FirebaseService } from '../services/firebaseService';
 import { CloudFunctionsService } from '../services/cloudFunctions';
 import { DataCacheService } from '../services/dataCacheService';
-import { DataCoordinator } from '../services/dataCoordinator';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { PersonalRecordsCard } from '../components/PersonalRecordsCard';
 import { PersonalBestsTableView } from '../components/PersonalBestsTableView';
@@ -42,6 +41,12 @@ export const DashboardPage: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasLoadedData, setHasLoadedData] = useState(false);
+  const [stats, setStats] = useState<DashboardStats>({
+    totalWorkouts: 0,
+    totalDistance: 0,
+    totalTime: 0,
+    averageDistance: 0
+  });
 
   // DEV ONLY: Toggle between old and new PB views
   const [useNewTableView, setUseNewTableView] = useState(true);
@@ -50,7 +55,6 @@ export const DashboardPage: React.FC = () => {
   const firebaseService = FirebaseService.getInstance();
   const cloudFunctions = CloudFunctionsService.getInstance();
   const cacheService = DataCacheService.getInstance();
-  const dataCoordinator = DataCoordinator.getInstance();
 
   // Reason: Initialize sport filter with user profile default
   const { selectedSport, selectedSportDisplay, setSelectedSport } = useSportFilter({
@@ -64,7 +68,22 @@ export const DashboardPage: React.FC = () => {
   const filteredPREvents = filterPREventsBySport(allPREvents, selectedSport);
   const filteredStats = calculateFilteredStats(filteredResults);
 
-  // Reason: Memoize loadDashboardData with coordinated loading to prevent duplicates
+  // Reason: Memoize calculateStats to prevent unnecessary recreations
+  const calculateStats = useCallback((results: StoredResult[]): DashboardStats => {
+    const totalWorkouts = results.length;
+    const totalDistance = results.reduce((sum, result) => sum + result.distance, 0);
+    const totalTime = results.reduce((sum, result) => sum + result.time, 0);
+    const averageDistance = totalWorkouts > 0 ? totalDistance / totalWorkouts : 0;
+
+    return {
+      totalWorkouts,
+      totalDistance,
+      totalTime,
+      averageDistance
+    };
+  }, []);
+
+  // Reason: Memoize loadDashboardData to prevent unnecessary recreations
   const loadDashboardData = useCallback(async () => {
     if (!user?.uid) {
       console.warn('loadDashboardData called without valid user');
@@ -75,51 +94,52 @@ export const DashboardPage: React.FC = () => {
       setLoading(true);
       console.log('Loading dashboard data for connected user');
       
-      // Reason: Use coordinated loading to prevent duplicate requests
-      const { results, profile, prEvents } = await dataCoordinator.coordinatedLoad(
-        `dashboardData_${user.uid}`,
-        async () => {
-          // Reason: Try to get cached data first for instant response
-          const cachedResults = await cacheService.getCachedData<StoredResult[]>(user.uid, 'allResults');
-          const cachedProfile = await cacheService.getCachedData<UserProfile>(user.uid, 'userProfile');
-          
-          if (cachedResults) {
-            console.log('Using cached dashboard data');
-            
-            // Load PR events (might be cached too)
-            const prEvents = await getPREvents();
-            
-            return {
-              results: cachedResults,
-              profile: cachedProfile,
-              prEvents
-            };
-          }
-          
-          // Reason: Load fresh data if not cached
-          console.log('Loading fresh dashboard data from database');
-          
-          // Load user profile
-          const profile = await firebaseService.getUserProfile(user.uid);
-          if (profile) {
-            await cacheService.setCachedData(user.uid, 'userProfile', profile);
-          }
-          
-          // Load all results once and derive everything from that
-          const results = await firebaseService.getAllResults(user.uid);
-          
-          // Cache the results for future use
-          await cacheService.setCachedData(user.uid, 'allResults', results);
-          
-          // Load all PR events for the enhanced filtering
-          const prEvents = await getPREvents();
-          
-          return { results, profile, prEvents };
-        }
-      );
+      // Reason: Try to get cached data first for instant response
+      const cachedResults = await cacheService.getCachedData<StoredResult[]>(user.uid, 'allResults');
+      const cachedStats = await cacheService.getCachedData<DashboardStats>(user.uid, 'dashboardStats');
+      const cachedProfile = await cacheService.getCachedData<UserProfile>(user.uid, 'userProfile');
       
-      setAllResults(results);
+      if (cachedResults && cachedStats) {
+        console.log('Using cached dashboard data');
+        setAllResults(cachedResults);
+        setStats(cachedStats);
+        
+        if (cachedProfile) {
+          setUserProfile(cachedProfile);
+        }
+        
+        // Load PR events (might be cached too)
+        const prEvents = await getPREvents();
+        setAllPREvents(prEvents);
+        
+        setLoading(false);
+        return;
+      }
+      
+      // Reason: Load fresh data if not cached
+      console.log('Loading fresh dashboard data from database');
+      
+      // Load user profile
+      const profile = await firebaseService.getUserProfile(user.uid);
       setUserProfile(profile);
+      if (profile) {
+        await cacheService.setCachedData(user.uid, 'userProfile', profile);
+      }
+      
+      // Load all results once and derive everything from that
+      const results = await firebaseService.getAllResults(user.uid);
+      setAllResults(results);
+      
+      // Cache the results for future use
+      await cacheService.setCachedData(user.uid, 'allResults', results);
+      
+      // Calculate and cache stats
+      const calculatedStats = calculateStats(results);
+      setStats(calculatedStats);
+      await cacheService.setCachedData(user.uid, 'dashboardStats', calculatedStats);
+      
+      // Load all PR events for the enhanced filtering
+      const prEvents = await getPREvents();
       setAllPREvents(prEvents);
       
       console.log(`Dashboard data loaded and cached: ${results.length} total results, ${prEvents.length} PR events`);
@@ -129,12 +149,12 @@ export const DashboardPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.uid, firebaseService, cacheService, dataCoordinator, getPREvents]);
+  }, [user?.uid, firebaseService, cacheService, calculateStats, getPREvents]);
 
-  // Reason: Improved useEffect to prevent circular dependency with hasLoadedData
+  // Reason: Fixed useEffect to prevent circular dependency with hasLoadedData
   useEffect(() => {
     // Exit early if conditions aren't met or if we've already loaded
-    if (!user || !concept2Connected) {
+    if (!user || !concept2Connected || hasLoadedData) {
       // Reset state when user or connection changes
       if (!user || !concept2Connected) {
         setHasLoadedData(false);
@@ -143,16 +163,17 @@ export const DashboardPage: React.FC = () => {
       return;
     }
     
-    // Reason: More robust duplicate load prevention
-    if (hasLoadedData) {
-      console.log('Dashboard data already loaded for current user and connection state');
-      return;
-    }
-    
     console.log('User authenticated and Concept2 connected, loading dashboard data');
     setHasLoadedData(true);
     loadDashboardData();
-  }, [user, concept2Connected]); // Reason: Remove loadDashboardData and hasLoadedData from dependencies
+  }, [user, concept2Connected, loadDashboardData]); // Reason: Remove hasLoadedData from dependencies
+
+  // Reason: Restore cache when component mounts
+  useEffect(() => {
+    if (user?.uid) {
+      cacheService.restoreFromSessionStorage(user.uid);
+    }
+  }, [user?.uid, cacheService]);
 
   const handleConnectConcept2 = () => {
     console.log('Starting Concept2 OAuth flow');
