@@ -32,7 +32,7 @@ export const Layout: React.FC = () => {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
               <div className="p-2 bg-gradient-to-r from-blue-500 to-teal-500 rounded-lg">
-                <FlamingStopwatchLogo size="md" className="text-white" animated />
+                <FlamingStopwatchLogo size="md" className="text-white" />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-slate-900">PB Dash</h1>
