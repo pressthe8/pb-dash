@@ -12,7 +12,7 @@ import { PersonalBestsTableView } from '../components/PersonalBestsTableView';
 import { StoredResult } from '../types/concept2';
 import { SportType, SPORT_MAPPING } from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
-import { Rows as RowingBoat, TrendingUp, Link, CheckCircle, AlertTriangle, Trophy, Ruler, Clock, Bike, Mountain } from 'lucide-react';
+import { Waves, TrendingUp, Link, CheckCircle, AlertTriangle, Trophy, Ruler, Clock, Bike, Mountain } from 'lucide-react';
 
 interface DashboardStats {
   totalWorkouts: number;
@@ -239,17 +239,17 @@ export const DashboardPage: React.FC = () => {
     return `${meters}m`;
   };
 
-  // Get sport icon
+  // Get sport icon - Updated to use Waves for rowing
   const getSportIcon = (sport: SportType) => {
     switch (sport) {
       case 'rower':
-        return <RowingBoat className="w-5 h-5" />;
+        return <Waves className="w-5 h-5" />;
       case 'bike':
         return <Bike className="w-5 h-5" />;
       case 'skierg':
         return <Mountain className="w-5 h-5" />;
       default:
-        return <RowingBoat className="w-5 h-5" />;
+        return <Waves className="w-5 h-5" />;
     }
   };
 
@@ -289,7 +289,7 @@ export const DashboardPage: React.FC = () => {
                      transition-all duration-200 transform hover:scale-105
                      flex items-center space-x-3 mx-auto"
           >
-            <RowingBoat className="w-5 h-5" />
+            <Link className="w-5 h-5" />
             <span>{connectionExpired ? 'Reconnect to Concept2' : 'Connect to Concept2'}</span>
           </button>
           
@@ -409,7 +409,7 @@ export const DashboardPage: React.FC = () => {
           <div className="bg-white rounded-xl p-4 lg:p-6 shadow-sm border border-slate-200">
             <div className="flex items-center justify-between mb-3 lg:mb-4">
               <div className="p-1.5 lg:p-2 bg-orange-100 rounded-lg">
-                <RowingBoat className="w-4 h-4 lg:w-6 lg:h-6 text-orange-600" />
+                <Ruler className="w-4 h-4 lg:w-6 lg:h-6 text-orange-600" />
               </div>
               <span className="text-lg lg:text-2xl font-bold text-slate-900">
                 {formatDistance(Math.round(filteredStats.averageDistance))}

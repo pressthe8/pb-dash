@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { Database, ArrowRight, Shield, TrendingUp, Share } from 'lucide-react';
+import { ArrowRight, Shield, TrendingUp, Timer } from 'lucide-react';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { BoltBadge } from '../components/BoltBadge';
+import { FlamingStopwatchLogo } from '../components/FlamingStopwatchLogo';
 
 export const LoginPage: React.FC = () => {
   const { signIn } = useAuth();
@@ -20,10 +22,13 @@ export const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-teal-700 flex items-center justify-center p-4">
+      {/* Bolt.new Badge */}
+      <BoltBadge />
+      
       <div className="max-w-4xl w-full">
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center p-4 bg-white/10 rounded-2xl mb-6">
-            <Database className="w-12 h-12 text-white" />
+            <FlamingStopwatchLogo size="xl" className="text-white" />
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
             PB Dash
@@ -39,11 +44,11 @@ export const LoginPage: React.FC = () => {
           <div className="space-y-6">
             <div className="flex items-start space-x-4">
               <div className="p-2 bg-white/10 rounded-lg">
-                <Database className="w-6 h-6 text-white" />
+                <Timer className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-white mb-2">Secure Data Storage</h3>
-                <p className="text-blue-100">Your data is private and secure. We can only read your public logbook data.</p>
+                <h3 className="text-lg font-semibold text-white mb-2">Personal Best Tracking</h3>
+                <p className="text-blue-100">Automatically track and celebrate your personal records across all distances and time challenges.</p>
               </div>
             </div>
             
@@ -59,11 +64,11 @@ export const LoginPage: React.FC = () => {
             
             <div className="flex items-start space-x-4">
               <div className="p-2 bg-white/10 rounded-lg">
-                <Share className="w-6 h-6 text-white" />
+                <Shield className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-white mb-2">Share Your Stats</h3>
-                <p className="text-blue-100">Download or export custom graphics to your success.</p>
+                <h3 className="text-lg font-semibold text-white mb-2">Secure & Private</h3>
+                <p className="text-blue-100">Your data is private and secure. We only access your public logbook data.</p>
               </div>
             </div>
           </div>
@@ -102,8 +107,35 @@ export const LoginPage: React.FC = () => {
         </div>
 
         <div className="text-center">
-          <p className="text-blue-200 text-sm">
-            Powered by Concept2 Logbook API • Built with React & Firebase
+          <p className="text-blue-200 text-sm flex flex-wrap items-center justify-center gap-1">
+            <span>Powered by</span>
+            <a 
+              href="https://www.concept2.com/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-300 hover:text-white transition-colors duration-200"
+            >
+              Concept2
+            </a>
+            <span>Logbook API • Built with</span>
+            <a 
+              href="https://bolt.new/?rid=s5l96i" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-300 hover:text-white transition-colors duration-200"
+            >
+              bolt.new
+            </a>
+            <span>• A</span>
+            <a 
+              href="https://pressthe8.com/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-300 hover:text-white transition-colors duration-200"
+            >
+              Pressthe8
+            </a>
+            <span>project</span>
           </p>
         </div>
       </div>
