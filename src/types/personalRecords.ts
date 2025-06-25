@@ -16,6 +16,7 @@ export interface PREvent {
   user_id: string;
   results_id: string;           // Reference to original result
   activity_key: string;         // Links to pr_types.activity_key
+  sport: SportType;            // NEW: Sport field for efficient filtering
   pr_scope: string[];          // ["all-time", "season-2025", "year-2024"]
   metric_type: "time" | "distance";
   metric_value: number;        // Time in seconds OR distance in meters
@@ -68,7 +69,7 @@ export const SPORT_MAPPING: Record<SportType, SportDisplayType> = {
   'skierg': 'Ski'
 };
 
-// Helper function to determine sport from activity key
+// Helper function to determine sport from activity key (DEPRECATED - use event.sport instead)
 export const getSportFromActivityKey = (activityKey: string): SportType => {
   if (activityKey.includes('_row')) return 'rower';
   if (activityKey.includes('_bike')) return 'bikeerg';

@@ -10,7 +10,7 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { PersonalRecordsCard } from '../components/PersonalRecordsCard';
 import { PersonalBestsTableView } from '../components/PersonalBestsTableView';
 import { StoredResult } from '../types/concept2';
-import { SportType, SPORT_MAPPING, getSportFromActivityKey } from '../types/personalRecords';
+import { SportType, SPORT_MAPPING } from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
 import { Rows as RowingBoat, TrendingUp, Link, CheckCircle, AlertTriangle, Trophy, Ruler, Clock, Bike, Mountain } from 'lucide-react';
 
@@ -106,7 +106,7 @@ export const DashboardPage: React.FC = () => {
     };
   }, []);
 
-  // Reason: Filter data based on selected sport
+  // Reason: Filter data based on selected sport - NOW USING DIRECT SPORT FIELD
   const filteredResults = useMemo(() => 
     allResults.filter(result => result.type === selectedSport), 
     [allResults, selectedSport]
@@ -117,13 +117,19 @@ export const DashboardPage: React.FC = () => {
     [filteredResults, calculateStats]
   );
 
+  // Reason: Filter PR stats using direct sport field from PR events (more efficient)
   const filteredPRStats = useMemo(() => 
-    prStats.filter(stat => getSportFromActivityKey(stat.activity_key) === selectedSport), 
-    [prStats, selectedSport]
+    prStats.filter(stat => {
+      // Check if any PR event for this activity matches the selected sport
+      const activityEvents = allPREvents.filter(event => event.activity_key === stat.activity_key);
+      return activityEvents.some(event => event.sport === selectedSport);
+    }), 
+    [prStats, allPREvents, selectedSport]
   );
 
+  // Reason: Filter PR events using direct sport field (much more efficient)
   const filteredPREvents = useMemo(() => 
-    allPREvents.filter(event => getSportFromActivityKey(event.activity_key) === selectedSport), 
+    allPREvents.filter(event => event.sport === selectedSport), 
     [allPREvents, selectedSport]
   );
 
