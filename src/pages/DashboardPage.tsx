@@ -244,7 +244,7 @@ export const DashboardPage: React.FC = () => {
     switch (sport) {
       case 'rower':
         return <RowingBoat className="w-5 h-5" />;
-      case 'bikeerg':
+      case 'bike':
         return <Bike className="w-5 h-5" />;
       case 'skierg':
         return <Mountain className="w-5 h-5" />;
@@ -331,7 +331,7 @@ export const DashboardPage: React.FC = () => {
         {/* Sport Filter - Full Width with Icons */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
           <div className="grid grid-cols-3 gap-4">
-            {(['rower', 'bikeerg', 'skierg'] as SportType[]).map((sport) => (
+            {(['rower', 'bike', 'skierg'] as SportType[]).map((sport) => (
               <button
                 key={sport}
                 onClick={() => setSelectedSport(sport)}

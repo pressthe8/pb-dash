@@ -2,7 +2,7 @@ export interface PRType {
   id: string;
   activity_name: string;        // Display name: "2K Row", "60min Row"
   activity_key: string;         // Unique identifier: "2k_row", "60min_row"
-  sport: string;               // "rower", "bikeerg", "skierg"
+  sport: string;               // "rower", "bike", "skierg"
   metric_type: "time" | "distance";
   target_distance: number | null;  // For distance-based activities (meters)
   target_time: number | null;      // For time-based activities (seconds)
@@ -58,21 +58,21 @@ export interface UserProfile {
   default_sport?: SportType;    // Default sport for dashboard
 }
 
-// NEW: Sport filtering types
-export type SportType = 'rower' | 'bikeerg' | 'skierg';
+// NEW: Sport filtering types - Updated to use 'bike' instead of 'bikeerg'
+export type SportType = 'rower' | 'bike' | 'skierg';
 export type SportDisplayType = 'Row' | 'Bike' | 'Ski';
 
-// Sport mapping constant
+// Sport mapping constant - Updated to use 'bike'
 export const SPORT_MAPPING: Record<SportType, SportDisplayType> = {
   'rower': 'Row',
-  'bikeerg': 'Bike', 
+  'bike': 'Bike',
   'skierg': 'Ski'
 };
 
 // Helper function to determine sport from activity key (DEPRECATED - use event.sport instead)
 export const getSportFromActivityKey = (activityKey: string): SportType => {
   if (activityKey.includes('_row')) return 'rower';
-  if (activityKey.includes('_bike')) return 'bikeerg';
+  if (activityKey.includes('_bike')) return 'bike';
   if (activityKey.includes('_ski')) return 'skierg';
   return 'rower'; // fallback
 };
