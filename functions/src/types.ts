@@ -16,7 +16,7 @@ export interface Concept2Result {
   timezone: string | null;
   date_utc: string | null;
   distance: number;
-  type: 'rower' | 'skierg' | 'bikeerg';
+  type: 'rower' | 'skierg' | 'bike';
   time: number;
   time_formatted: string;
   workout_type: string;
@@ -69,7 +69,7 @@ export interface PREvent {
   user_id: string;
   results_id: string;           // Reference to original result
   activity_key: string;         // Links to pr_types.activity_key
-  sport: 'rower' | 'skierg' | 'bikeerg'; // NEW: Sport field for efficient filtering
+  sport: 'rower' | 'skierg' | 'bike'; // Sport field for efficient filtering
   pr_scope: string[];          // ["all-time", "season-2025", "year-2024"]
   metric_type: string;
   metric_value: number;        // Time in seconds OR distance in meters

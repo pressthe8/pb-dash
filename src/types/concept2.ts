@@ -5,7 +5,7 @@ export interface Concept2Result {
   timezone: string | null;
   date_utc: string | null;
   distance: number;
-  type: 'rower' | 'skierg' | 'bikeerg';
+  type: 'rower' | 'skierg' | 'bike';
   time: number;
   time_formatted: string;
   workout_type: string;
