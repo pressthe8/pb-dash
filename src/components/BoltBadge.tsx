@@ -29,7 +29,7 @@ export const BoltBadge: React.FC = () => {
           <img 
             src="https://storage.bolt.army/black_circle_360x360.png" 
             alt="Built with Bolt.new badge" 
-            className="w-20 h-20 md:w-28 md:h-28 rounded-full shadow-lg bolt-badge"
+            className="w-12 h-12 md:w-16 md:h-16 rounded-full shadow-lg bolt-badge"
           />
         </a>
       </div>
