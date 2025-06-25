@@ -1,8 +1,9 @@
 import React from 'react';
 import { Outlet, useLocation, Link } from 'react-router-dom';
-import { Rows as RowingBoat, Activity, LogOut, User, Settings } from 'lucide-react';
+import { Activity, LogOut, User, Settings } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { BoltBadge } from './BoltBadge';
+import { FlamingStopwatchLogo } from './FlamingStopwatchLogo';
 
 export const Layout: React.FC = () => {
   const { user, signOut } = useAuth();
@@ -31,7 +32,7 @@ export const Layout: React.FC = () => {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
               <div className="p-2 bg-gradient-to-r from-blue-500 to-teal-500 rounded-lg">
-                <RowingBoat className="w-6 h-6 text-white" />
+                <FlamingStopwatchLogo size="md" className="text-white" animated />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-slate-900">PB Dash</h1>
