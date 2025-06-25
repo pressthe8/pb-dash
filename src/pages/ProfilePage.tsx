@@ -392,7 +392,7 @@ export const ProfilePage: React.FC = () => {
               <p className="text-sm text-slate-600">Choose which sport to show by default on dashboard</p>
             </div>
             <div className="flex items-center bg-slate-100 rounded-lg p-1">
-              {(['rower', 'bike', 'skierg'] as SportType[]).map((sport) => (
+              {(['rower', 'bikeerg', 'skierg'] as SportType[]).map((sport) => (
                 <button
                   key={sport}
                   onClick={() => handleDefaultSportChange(sport)}
