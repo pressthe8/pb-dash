@@ -239,12 +239,12 @@ export const DashboardPage: React.FC = () => {
     return `${meters}m`;
   };
 
-  // Get sport icon - Fixed to use correct sport types
+  // Get sport icon
   const getSportIcon = (sport: SportType) => {
     switch (sport) {
       case 'rower':
         return <RowingBoat className="w-5 h-5" />;
-      case 'bikeerg':  // Fixed: Use 'bikeerg' to match database
+      case 'bikeerg':
         return <Bike className="w-5 h-5" />;
       case 'skierg':
         return <Mountain className="w-5 h-5" />;
