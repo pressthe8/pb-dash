@@ -289,7 +289,7 @@ export const DashboardPage: React.FC = () => {
                      transition-all duration-200 transform hover:scale-105
                      flex items-center space-x-3 mx-auto"
           >
-            <Waves className="w-5 h-5" />
+            <Link className="w-5 h-5" />
             <span>{connectionExpired ? 'Reconnect to Concept2' : 'Connect to Concept2'}</span>
           </button>
           
