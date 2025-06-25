@@ -97,7 +97,36 @@ export const Layout: React.FC = () => {
       <footer className="bg-white/50 border-t border-slate-200 mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="text-center text-slate-500 text-sm">
-            <p>Powered by Concept2 Logbook API • Built with React & Firebase</p>
+            <p className="flex flex-wrap items-center justify-center gap-1">
+              <span>Powered by</span>
+              <a 
+                href="https://www.concept2.com/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-800 transition-colors duration-200"
+              >
+                Concept2
+              </a>
+              <span>Logbook API • Built with</span>
+              <a 
+                href="https://bolt.new/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-800 transition-colors duration-200"
+              >
+                bolt.new
+              </a>
+              <span>• A</span>
+              <a 
+                href="https://pressthe8.com/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-800 transition-colors duration-200"
+              >
+                Pressthe8
+              </a>
+              <span>project</span>
+            </p>
           </div>
         </div>
       </footer>
