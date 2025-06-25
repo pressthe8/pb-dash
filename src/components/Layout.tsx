@@ -22,6 +22,10 @@ export const Layout: React.FC = () => {
     navigate('/profile');
   };
 
+  const handleLogoClick = () => {
+    navigate('/dashboard');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Bolt.new Badge */}
@@ -31,14 +35,18 @@ export const Layout: React.FC = () => {
       <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-3">
+            {/* Clickable Logo and Title */}
+            <button
+              onClick={handleLogoClick}
+              className="flex items-center space-x-3 hover:opacity-80 transition-opacity duration-200"
+            >
               <div className="p-2 bg-gradient-to-r from-blue-500 to-teal-500 rounded-lg">
                 <FlamingStopwatchLogo size="md" className="text-white" />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-slate-900">PB Dash</h1>
               </div>
-            </div>
+            </button>
             
             {/* User Menu */}
             <div className="flex items-center space-x-3">
