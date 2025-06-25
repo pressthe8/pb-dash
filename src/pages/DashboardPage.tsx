@@ -409,7 +409,7 @@ export const DashboardPage: React.FC = () => {
           <div className="bg-white rounded-xl p-4 lg:p-6 shadow-sm border border-slate-200">
             <div className="flex items-center justify-between mb-3 lg:mb-4">
               <div className="p-1.5 lg:p-2 bg-orange-100 rounded-lg">
-                <Waves className="w-4 h-4 lg:w-6 lg:h-6 text-orange-600" />
+                <Ruler className="w-4 h-4 lg:w-6 lg:h-6 text-orange-600" />
               </div>
               <span className="text-lg lg:text-2xl font-bold text-slate-900">
                 {formatDistance(Math.round(filteredStats.averageDistance))}
