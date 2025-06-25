@@ -1,8 +1,27 @@
+// NEW: Sport filtering types
+export type SportType = 'rower' | 'bike' | 'skierg'; // Changed 'bikeerg' to 'bike'
+export type SportDisplayType = 'Row' | 'Bike' | 'Ski';
+
+// Sport mapping constant
+export const SPORT_MAPPING: Record<SportType, SportDisplayType> = {
+  'rower': 'Row',
+  'bike': 'Bike',    // Changed from 'bikeerg': 'Bike'
+  'skierg': 'Ski'
+};
+
+// Helper function to determine sport from activity key (DEPRECATED - use event.sport instead)
+export const getSportFromActivityKey = (activityKey: string): SportType => {
+  if (activityKey.includes('_row')) return 'rower';
+  if (activityKey.includes('_bike')) return 'bike';    // Changed from 'bikeerg'
+  if (activityKey.includes('_ski')) return 'skierg';
+  return 'rower'; // fallback
+};
+
 export interface PRType {
   id: string;
   activity_name: string;        // Display name: "2K Row", "60min Row"
   activity_key: string;         // Unique identifier: "2k_row", "60min_row"
-  sport: string;               // "rower", "bikeerg", "skierg"
+  sport: string;               // "rower", "bike", "skierg"
   metric_type: "time" | "distance";
   target_distance: number | null;  // For distance-based activities (meters)
   target_time: number | null;      // For time-based activities (seconds)
@@ -57,22 +76,3 @@ export interface UserProfile {
   private: boolean;             // Profile privacy setting
   default_sport?: SportType;    // Default sport for dashboard
 }
-
-// NEW: Sport filtering types
-export type SportType = 'rower' | 'bikeerg' | 'skierg';
-export type SportDisplayType = 'Row' | 'Bike' | 'Ski';
-
-// Sport mapping constant
-export const SPORT_MAPPING: Record<SportType, SportDisplayType> = {
-  'rower': 'Row',
-  'bikeerg': 'Bike', 
-  'skierg': 'Ski'
-};
-
-// Helper function to determine sport from activity key (DEPRECATED - use event.sport instead)
-export const getSportFromActivityKey = (activityKey: string): SportType => {
-  if (activityKey.includes('_row')) return 'rower';
-  if (activityKey.includes('_bike')) return 'bikeerg';
-  if (activityKey.includes('_ski')) return 'skierg';
-  return 'rower'; // fallback
-};
