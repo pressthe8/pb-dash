@@ -12,8 +12,7 @@ export const AuthCallbackPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, loading, storeConcept2Tokens } = useAuth();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
-  const [message, setMessage] = useState('Processing authentication...');
-  const [debugInfo, setDebugInfo] = useState<string[]>([]);
+  const [message, setMessage] = useState('Connecting your account...');
   
   const hasProcessed = useRef(false);
 
@@ -24,12 +23,10 @@ export const AuthCallbackPage: React.FC = () => {
   useEffect(() => {
     // Wait for authentication state to be fully loaded
     if (loading) {
-      addDebugInfo('Waiting for authentication state to load...');
       return;
     }
 
     if (!user) {
-      addDebugInfo('User not authenticated after loading completed');
       setStatus('error');
       setMessage('User not authenticated. Please log in first.');
       return;
@@ -44,14 +41,9 @@ export const AuthCallbackPage: React.FC = () => {
     processAuthCallback();
   }, [loading, user]);
 
-  const addDebugInfo = (info: string) => {
-    console.log('Auth Callback:', info);
-    setDebugInfo(prev => [...prev, `${new Date().toLocaleTimeString()}: ${info}`]);
-  };
-
   const processAuthCallback = async () => {
     try {
-      addDebugInfo('Starting callback handling');
+      console.log('Starting callback handling');
       
       const code = searchParams.get('code');
       const state = searchParams.get('state');
@@ -69,60 +61,56 @@ export const AuthCallbackPage: React.FC = () => {
         return;
       }
 
-      addDebugInfo(`User authenticated: ${user!.uid}`);
-      setMessage('Exchanging authorization code for tokens...');
+      console.log(`User authenticated: ${user!.uid}`);
+      setMessage('Securing your connection...');
       
       // Exchange code for tokens
       const tokens = await concept2Api.exchangeCodeForToken(code, state);
-      addDebugInfo('Token exchange successful');
-      
-      setMessage('Storing authentication tokens...');
+      console.log('Token exchange successful');
       
       // Store tokens in Firebase
       await storeConcept2Tokens(tokens);
-      addDebugInfo('Token storage successful');
-      
-      setMessage('Refreshing authentication token...');
+      console.log('Token storage successful');
       
       // CRITICAL FIX: Force refresh Firebase ID token and wait for it to complete
       // This ensures the token is fresh and valid for Cloud Function calls
       try {
-        addDebugInfo('Forcing Firebase ID token refresh...');
+        console.log('Forcing Firebase ID token refresh...');
         const freshIdToken = await user!.getIdToken(true);
-        addDebugInfo(`Firebase ID token refreshed successfully, length: ${freshIdToken.length}`);
+        console.log(`Firebase ID token refreshed successfully, length: ${freshIdToken.length}`);
         
         // Add a small delay to ensure the token is fully propagated
         await new Promise(resolve => setTimeout(resolve, 1000));
-        addDebugInfo('Token propagation delay completed');
+        console.log('Token propagation delay completed');
       } catch (tokenError) {
-        addDebugInfo(`Critical error refreshing ID token: ${tokenError instanceof Error ? tokenError.message : 'Unknown error'}`);
+        console.log(`Critical error refreshing ID token: ${tokenError instanceof Error ? tokenError.message : 'Unknown error'}`);
         throw new Error('Failed to refresh authentication token for Cloud Function access');
       }
       
-      setMessage('Fetching workout data via Cloud Function...');
+      setMessage('Loading your workout history...');
       
       // Trigger initial data load via Cloud Function (FAST - no PR processing)
       const syncResponse = await cloudFunctions.initialDataLoad(user!.uid);
       
-      addDebugInfo(`Fetched ${syncResponse.newResultsCount} new results, ${syncResponse.totalResultsCount} total results`);
+      console.log(`Fetched ${syncResponse.newResultsCount} new results, ${syncResponse.totalResultsCount} total results`);
       
       // NEW: Extract and store Concept2 User ID if we have results
       if (syncResponse.totalResultsCount > 0) {
-        setMessage('Updating user profile...');
+        setMessage('Setting up your profile...');
         
         try {
           // Get one result to extract the Concept2 User ID
           const allResults = await firebaseService.getAllResults(user!.uid);
           if (allResults.length > 0) {
             const concept2UserId = allResults[0].user_id.toString();
-            addDebugInfo(`Extracted Concept2 User ID: ${concept2UserId}`);
+            console.log(`Extracted Concept2 User ID: ${concept2UserId}`);
             
             // Update user profile with Concept2 User ID
             await firebaseService.createUserProfile(user!.uid, concept2UserId);
-            addDebugInfo('User profile updated with Concept2 User ID');
+            console.log('User profile updated with Concept2 User ID');
           }
         } catch (profileError) {
-          addDebugInfo(`Warning: Could not update user profile: ${profileError instanceof Error ? profileError.message : 'Unknown error'}`);
+          console.log(`Warning: Could not update user profile: ${profileError instanceof Error ? profileError.message : 'Unknown error'}`);
           // Don't fail the entire flow for profile update issues
         }
       }
@@ -132,35 +120,35 @@ export const AuthCallbackPage: React.FC = () => {
       
       if (isNewUser) {
         // NEW USER: Complete PR setup for all results
-        addDebugInfo('New user detected - performing complete PR setup');
-        setMessage('Setting up personal records system...');
+        console.log('New user detected - performing complete PR setup');
+        setMessage('Organizing your personal bests...');
         
         const prResponse = await cloudFunctions.processAllResultsForPRs(user!.uid);
-        addDebugInfo(`Complete PR setup: ${prResponse.totalPRsProcessed} PRs across ${prResponse.activitiesProcessed} activities`);
+        console.log(`Complete PR setup: ${prResponse.totalPRsProcessed} PRs across ${prResponse.activitiesProcessed} activities`);
         
         setStatus('success');
-        setMessage(`Welcome! Successfully imported ${syncResponse.totalResultsCount} workouts and set up ${prResponse.totalPRsProcessed} personal records.`);
+        setMessage(`Welcome to PB Dash! We've imported ${syncResponse.totalResultsCount} workouts and set up ${prResponse.totalPRsProcessed} personal bests.`);
       } else {
         // RETURNING USER: Process new results if any
-        addDebugInfo('Returning user detected - processing new results');
+        console.log('Returning user detected - processing new results');
         
         if (syncResponse.newResultsCount > 0) {
-          setMessage('Processing new personal records...');
+          setMessage('Organizing your personal bests...');
           
           // For returning users with new results, we need to use processAllResultsForPRs
           // because initialDataLoad doesn't provide newResultIds, and we need to ensure
           // the new results are properly processed for PRs
-          addDebugInfo(`Processing ${syncResponse.newResultsCount} new results for PRs`);
+          console.log(`Processing ${syncResponse.newResultsCount} new results for PRs`);
           const prResponse = await cloudFunctions.processAllResultsForPRs(user!.uid);
-          addDebugInfo(`PR processing completed: ${prResponse.totalPRsProcessed} total PRs across ${prResponse.activitiesProcessed} activities`);
+          console.log(`PR processing completed: ${prResponse.totalPRsProcessed} total PRs across ${prResponse.activitiesProcessed} activities`);
           
           setStatus('success');
-          setMessage(`Welcome back! Added ${syncResponse.newResultsCount} new workouts. Personal records updated.`);
+          setMessage(`Welcome back! We've added ${syncResponse.newResultsCount} new workouts and updated your personal bests.`);
         } else {
           // No new results
-          addDebugInfo('No new results to process');
+          console.log('No new results to process');
           setStatus('success');
-          setMessage(`Welcome back! Your account is reconnected and up to date.`);
+          setMessage(`Welcome back! Your account is up to date.`);
         }
       }
       
@@ -171,7 +159,6 @@ export const AuthCallbackPage: React.FC = () => {
       
     } catch (error) {
       console.error('Callback handling failed:', error);
-      addDebugInfo(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setStatus('error');
       setMessage(error instanceof Error ? error.message : 'An unexpected error occurred');
     }
@@ -216,24 +203,6 @@ export const AuthCallbackPage: React.FC = () => {
           <p className={`${getStatusColor()} mb-6`}>
             {message}
           </p>
-          
-          {/* Debug Information */}
-          {(debugInfo.length > 0 && (status === 'error' || import.meta.env.DEV)) && (
-            <div className="mb-6 text-left">
-              <details className="text-sm">
-                <summary className="cursor-pointer text-slate-600 hover:text-slate-800">
-                  Debug Information ({debugInfo.length} entries)
-                </summary>
-                <div className="mt-2 p-3 bg-slate-50 rounded border max-h-40 overflow-y-auto">
-                  {debugInfo.map((info, index) => (
-                    <div key={index} className="text-xs text-slate-600 font-mono">
-                      {info}
-                    </div>
-                  ))}
-                </div>
-              </details>
-            </div>
-          )}
           
           {status === 'success' && (
             <p className="text-sm text-slate-500">

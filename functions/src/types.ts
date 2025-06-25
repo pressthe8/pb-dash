@@ -67,13 +67,14 @@ export interface StoredResult extends Concept2Result {
 export interface PREvent {
   id: string;
   user_id: string;
-  results_id: string;
-  activity_key: string;
-  pr_scope: string[];
+  results_id: string;           // Reference to original result
+  activity_key: string;         // Links to pr_types.activity_key
+  sport: 'rower' | 'skierg' | 'bikeerg'; // NEW: Sport field for efficient filtering
+  pr_scope: string[];          // ["all-time", "season-2025", "year-2024"]
   metric_type: string;
-  metric_value: number;
-  achieved_at: string;
-  season_identifier: string;
+  metric_value: number;        // Time in seconds OR distance in meters
+  achieved_at: string;         // ISO timestamp
+  season_identifier: string;   // "2025" (end year of season)
   previous_record: any;
   pace_per_500m: number | null;
   created_at: any; // Firestore timestamp

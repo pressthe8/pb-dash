@@ -40,3 +40,23 @@
 - [x] **COMPLETED**: Implemented selective trophy display - only show gold trophies for all-time PBs in filtered views
 - [x] **COMPLETED**: Enhanced filtering logic to provide better contextual awareness
 - [x] **COMPLETED**: Improved visual clarity by distinguishing between all-time records and period-specific records
+
+### Sport Filtering Implementation - January 21, 2025 6:30 PM
+- [x] **COMPLETED**: Added comprehensive sport filtering system with Row/Bike/Ski options
+- [x] **COMPLETED**: Implemented dashboard-wide sport filter affecting both stats cards and Personal Bests table
+- [x] **COMPLETED**: Added prominent 3-way toggle at top of dashboard for sport selection
+- [x] **COMPLETED**: Created compact sport toggle in Profile Settings for default preference
+- [x] **COMPLETED**: Implemented smart default logic that selects sport with highest result count
+- [x] **COMPLETED**: Added session persistence via localStorage for current dashboard selection
+- [x] **COMPLETED**: Added profile setting persistence via Firebase for default sport preference
+- [x] **COMPLETED**: Updated empty states to show sport-specific messaging
+- [x] **COMPLETED**: Integrated filtering with existing cache system without breaking performance
+- [x] **COMPLETED**: Added sport type definitions and mapping constants to type system
+
+### Dashboard UI Improvements - January 21, 2025 7:00 PM
+- [x] **COMPLETED**: Removed "Dashboard - Your rowing performance at a glance" header section
+- [x] **COMPLETED**: Removed PB view toggle from dashboard (dev toggle still available)
+- [x] **COMPLETED**: Redesigned sport filter to be full width with responsive grid layout
+- [x] **COMPLETED**: Added sport-specific icons (rowing boat, bike, mountain) to filter buttons
+- [x] **COMPLETED**: Enhanced sport filter with gradient backgrounds and hover effects
+- [x] **COMPLETED**: Improved visual hierarchy with larger, more prominent sport selection
