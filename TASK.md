@@ -60,3 +60,4 @@
 - [x] **COMPLETED**: Added sport-specific icons (rowing boat, bike, mountain) to filter buttons
 - [x] **COMPLETED**: Enhanced sport filter with gradient backgrounds and hover effects
 - [x] **COMPLETED**: Improved visual hierarchy with larger, more prominent sport selection2025-01-24 21:30 - Fixed SportType mismatch: Updated 'bike' to 'bikeerg' in types and components to match backend data format
+: Fixed sport type consistency - changed 'bike' to 'bikeerg' throughout frontend to match backend API
