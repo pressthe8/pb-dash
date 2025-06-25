@@ -107,8 +107,35 @@ export const LoginPage: React.FC = () => {
         </div>
 
         <div className="text-center">
-          <p className="text-blue-200 text-sm">
-            Powered by Concept2 Logbook API • Built with React & Firebase
+          <p className="text-blue-200 text-sm flex flex-wrap items-center justify-center gap-1">
+            <span>Powered by</span>
+            <a 
+              href="https://www.concept2.com/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-300 hover:text-white transition-colors duration-200"
+            >
+              Concept2
+            </a>
+            <span>Logbook API • Built with</span>
+            <a 
+              href="https://bolt.new/?rid=s5l96i" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-300 hover:text-white transition-colors duration-200"
+            >
+              bolt.new
+            </a>
+            <span>• A</span>
+            <a 
+              href="https://pressthe8.com/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-300 hover:text-white transition-colors duration-200"
+            >
+              Pressthe8
+            </a>
+            <span>project</span>
           </p>
         </div>
       </div>
