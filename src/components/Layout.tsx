@@ -109,7 +109,7 @@ export const Layout: React.FC = () => {
               </a>
               <span>Logbook API • Built with</span>
               <a 
-                href="https://bolt.new/" 
+                href="https://bolt.new/?rid=s5l96i" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:text-blue-800 transition-colors duration-200"
