@@ -1,6 +1,6 @@
 import React from 'react';
-import { Outlet, useLocation, Link } from 'react-router-dom';
-import { Activity, LogOut, User, Settings } from 'lucide-react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { LogOut, User } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { BoltBadge } from './BoltBadge';
 import { FlamingStopwatchLogo } from './FlamingStopwatchLogo';
@@ -8,6 +8,7 @@ import { FlamingStopwatchLogo } from './FlamingStopwatchLogo';
 export const Layout: React.FC = () => {
   const { user, signOut } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const handleSignOut = async () => {
     try {
@@ -17,8 +18,8 @@ export const Layout: React.FC = () => {
     }
   };
 
-  const isActive = (path: string) => {
-    return location.pathname === path;
+  const handleProfileClick = () => {
+    navigate('/profile');
   };
 
   return (
@@ -39,36 +40,13 @@ export const Layout: React.FC = () => {
               </div>
             </div>
             
-            {/* Navigation */}
-            <nav className="hidden md:flex items-center space-x-6">
-              <Link
-                to="/dashboard"
-                className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors duration-200 ${
-                  isActive('/dashboard')
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100'
-                }`}
-              >
-                <Activity className="w-4 h-4" />
-                <span className="text-sm font-medium">Dashboard</span>
-              </Link>
-              
-              <Link
-                to="/profile"
-                className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors duration-200 ${
-                  isActive('/profile')
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100'
-                }`}
-              >
-                <Settings className="w-4 h-4" />
-                <span className="text-sm font-medium">Profile</span>
-              </Link>
-            </nav>
-            
             {/* User Menu */}
-            <div className="flex items-center space-x-3 pl-4 border-l border-slate-200">
-              <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3">
+              {/* Clickable User Profile */}
+              <button
+                onClick={handleProfileClick}
+                className="flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors duration-200 hover:bg-slate-100"
+              >
                 <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-teal-500 rounded-full flex items-center justify-center">
                   {user?.photoURL ? (
                     <img 
@@ -80,7 +58,7 @@ export const Layout: React.FC = () => {
                     <User className="w-4 h-4 text-white" />
                   )}
                 </div>
-                <div className="hidden sm:block">
+                <div className="hidden sm:block text-left">
                   <p className="text-sm font-medium text-slate-900">
                     {user?.displayName || 'User'}
                   </p>
@@ -88,7 +66,7 @@ export const Layout: React.FC = () => {
                     {user?.email}
                   </p>
                 </div>
-              </div>
+              </button>
               
               <button
                 onClick={handleSignOut}
@@ -97,37 +75,6 @@ export const Layout: React.FC = () => {
               >
                 <LogOut className="w-4 h-4" />
               </button>
-            </div>
-          </div>
-        </div>
-        
-        {/* Mobile Navigation */}
-        <div className="md:hidden border-t border-slate-200 bg-white">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex space-x-4 py-2">
-              <Link
-                to="/dashboard"
-                className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors duration-200 ${
-                  isActive('/dashboard')
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100'
-                }`}
-              >
-                <Activity className="w-4 h-4" />
-                <span className="text-sm font-medium">Dashboard</span>
-              </Link>
-              
-              <Link
-                to="/profile"
-                className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors duration-200 ${
-                  isActive('/profile')
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100'
-                }`}
-              >
-                <Settings className="w-4 h-4" />
-                <span className="text-sm font-medium">Profile</span>
-              </Link>
             </div>
           </div>
         </div>
