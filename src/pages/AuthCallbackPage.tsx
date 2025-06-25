@@ -12,7 +12,7 @@ export const AuthCallbackPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, loading, storeConcept2Tokens } = useAuth();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
-  const [message, setMessage] = useState('Processing authentication...');
+  const [message, setMessage] = useState('Connecting your account...');
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
   
   const hasProcessed = useRef(false);
@@ -70,19 +70,15 @@ export const AuthCallbackPage: React.FC = () => {
       }
 
       addDebugInfo(`User authenticated: ${user!.uid}`);
-      setMessage('Exchanging authorization code for tokens...');
+      setMessage('Securing your connection...');
       
       // Exchange code for tokens
       const tokens = await concept2Api.exchangeCodeForToken(code, state);
       addDebugInfo('Token exchange successful');
       
-      setMessage('Storing authentication tokens...');
-      
       // Store tokens in Firebase
       await storeConcept2Tokens(tokens);
       addDebugInfo('Token storage successful');
-      
-      setMessage('Refreshing authentication token...');
       
       // CRITICAL FIX: Force refresh Firebase ID token and wait for it to complete
       // This ensures the token is fresh and valid for Cloud Function calls
@@ -99,7 +95,7 @@ export const AuthCallbackPage: React.FC = () => {
         throw new Error('Failed to refresh authentication token for Cloud Function access');
       }
       
-      setMessage('Fetching workout data via Cloud Function...');
+      setMessage('Loading your workout history...');
       
       // Trigger initial data load via Cloud Function (FAST - no PR processing)
       const syncResponse = await cloudFunctions.initialDataLoad(user!.uid);
@@ -108,7 +104,7 @@ export const AuthCallbackPage: React.FC = () => {
       
       // NEW: Extract and store Concept2 User ID if we have results
       if (syncResponse.totalResultsCount > 0) {
-        setMessage('Updating user profile...');
+        setMessage('Setting up your profile...');
         
         try {
           // Get one result to extract the Concept2 User ID
@@ -133,19 +129,19 @@ export const AuthCallbackPage: React.FC = () => {
       if (isNewUser) {
         // NEW USER: Complete PR setup for all results
         addDebugInfo('New user detected - performing complete PR setup');
-        setMessage('Setting up personal records system...');
+        setMessage('Organizing your personal bests...');
         
         const prResponse = await cloudFunctions.processAllResultsForPRs(user!.uid);
         addDebugInfo(`Complete PR setup: ${prResponse.totalPRsProcessed} PRs across ${prResponse.activitiesProcessed} activities`);
         
         setStatus('success');
-        setMessage(`Welcome! Successfully imported ${syncResponse.totalResultsCount} workouts and set up ${prResponse.totalPRsProcessed} personal records.`);
+        setMessage(`Welcome to PB Dash! We've imported ${syncResponse.totalResultsCount} workouts and set up ${prResponse.totalPRsProcessed} personal bests.`);
       } else {
         // RETURNING USER: Process new results if any
         addDebugInfo('Returning user detected - processing new results');
         
         if (syncResponse.newResultsCount > 0) {
-          setMessage('Processing new personal records...');
+          setMessage('Organizing your personal bests...');
           
           // For returning users with new results, we need to use processAllResultsForPRs
           // because initialDataLoad doesn't provide newResultIds, and we need to ensure
@@ -155,12 +151,12 @@ export const AuthCallbackPage: React.FC = () => {
           addDebugInfo(`PR processing completed: ${prResponse.totalPRsProcessed} total PRs across ${prResponse.activitiesProcessed} activities`);
           
           setStatus('success');
-          setMessage(`Welcome back! Added ${syncResponse.newResultsCount} new workouts. Personal records updated.`);
+          setMessage(`Welcome back! We've added ${syncResponse.newResultsCount} new workouts and updated your personal bests.`);
         } else {
           // No new results
           addDebugInfo('No new results to process');
           setStatus('success');
-          setMessage(`Welcome back! Your account is reconnected and up to date.`);
+          setMessage(`Welcome back! Your account is up to date.`);
         }
       }
       
