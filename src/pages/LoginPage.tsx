@@ -29,7 +29,7 @@ export const LoginPage: React.FC = () => {
             PB Dash
           </h1>
           <p className="text-xl text-blue-100 max-w-2xl mx-auto">
-            Connect your Concept2 account and unlock powerful insights into your rowing performance. 
+            Connect your Concept2 account and unlock powerful insights into your performance. 
             Track progress, analyze trends, and achieve your fitness goals.
           </p>
         </div>

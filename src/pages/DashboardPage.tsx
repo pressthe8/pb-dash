@@ -277,8 +277,8 @@ export const DashboardPage: React.FC = () => {
           
           <p className="text-slate-600 mb-8">
             {connectionExpired 
-              ? 'Your Concept2 connection has expired. Please reconnect to continue viewing your rowing data and analytics.'
-              : 'To view your rowing data and analytics, you need to connect your Concept2 Logbook account. This allows us to securely fetch your workout history and provide detailed insights.'
+              ? 'Your Concept2 connection has expired. Please reconnect to continue viewing your activity data and analytics.'
+              : 'To view your activity data and analytics, you need to connect your Concept2 Logbook account. This allows us to securely fetch your workout history and provide detailed insights.'
             }
           </p>
           
