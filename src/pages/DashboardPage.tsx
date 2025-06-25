@@ -66,15 +66,11 @@ export const DashboardPage: React.FC = () => {
       return acc;
     }, {} as Record<SportType, number>);
     
-    console.log('Sport counts from results:', sportCounts);
-    
     // Return sport with highest count, fallback to 'rower'
     const entries = Object.entries(sportCounts) as [SportType, number][];
     if (entries.length === 0) return 'rower';
     
-    const defaultSport = entries.reduce((a, b) => a[1] > b[1] ? a : b)[0];
-    console.log('Determined default sport:', defaultSport);
-    return defaultSport;
+    return entries.reduce((a, b) => a[1] > b[1] ? a : b)[0];
   }, []);
 
   // Reason: Load sport preference from session storage and profile
@@ -82,13 +78,6 @@ export const DashboardPage: React.FC = () => {
     if (!hasLoadedSportPreference && allResults.length > 0) {
       const sessionSport = localStorage.getItem('dashboard_sport_filter') as SportType;
       const defaultSport = determineDefaultSport(allResults, userProfile?.default_sport);
-      
-      console.log('Loading sport preference:', {
-        sessionSport,
-        profileDefault: userProfile?.default_sport,
-        determinedDefault: defaultSport,
-        totalResults: allResults.length
-      });
       
       setSelectedSport(sessionSport || defaultSport);
       setHasLoadedSportPreference(true);
@@ -99,7 +88,6 @@ export const DashboardPage: React.FC = () => {
   useEffect(() => {
     if (hasLoadedSportPreference) {
       localStorage.setItem('dashboard_sport_filter', selectedSport);
-      console.log('Persisted sport selection to localStorage:', selectedSport);
     }
   }, [selectedSport, hasLoadedSportPreference]);
 
@@ -119,16 +107,10 @@ export const DashboardPage: React.FC = () => {
   }, []);
 
   // Reason: Filter data based on selected sport - NOW USING DIRECT SPORT FIELD
-  const filteredResults = useMemo(() => {
-    console.log('Filtering results for sport:', selectedSport);
-    console.log('Total results before filtering:', allResults.length);
-    
-    const filtered = allResults.filter(result => result.type === selectedSport);
-    console.log('Filtered results count:', filtered.length);
-    console.log('Sample filtered results:', filtered.slice(0, 3).map(r => ({ id: r.id, type: r.type, distance: r.distance })));
-    
-    return filtered;
-  }, [allResults, selectedSport]);
+  const filteredResults = useMemo(() => 
+    allResults.filter(result => result.type === selectedSport), 
+    [allResults, selectedSport]
+  );
 
   const filteredStats = useMemo(() => 
     calculateStats(filteredResults), 
@@ -136,70 +118,20 @@ export const DashboardPage: React.FC = () => {
   );
 
   // Reason: Filter PR stats using direct sport field from PR events (more efficient)
-  const filteredPRStats = useMemo(() => {
-    console.log('Filtering PR stats for sport:', selectedSport);
-    console.log('Total PR stats before filtering:', prStats.length);
-    console.log('Total PR events before filtering:', allPREvents.length);
-    
-    // Debug: Check what sports are available in PR events
-    const sportsInPREvents = [...new Set(allPREvents.map(event => event.sport).filter(Boolean))];
-    console.log('Sports found in PR events:', sportsInPREvents);
-    
-    // Debug: Check fallback logic for events without sport field
-    const eventsWithoutSport = allPREvents.filter(event => !event.sport);
-    console.log('PR events without sport field:', eventsWithoutSport.length);
-    
-    const filtered = prStats.filter(stat => {
+  const filteredPRStats = useMemo(() => 
+    prStats.filter(stat => {
       // Check if any PR event for this activity matches the selected sport
       const activityEvents = allPREvents.filter(event => event.activity_key === stat.activity_key);
-      
-      console.log(`Activity ${stat.activity_key}: ${activityEvents.length} events`);
-      
-      const matchingSportEvents = activityEvents.filter(event => {
-        // Use direct sport field if available, otherwise fall back to activity key analysis
-        if (event.sport) {
-          return event.sport === selectedSport;
-        } else {
-          // Fallback logic for old PR events without sport field
-          // This is a temporary measure until all PR events have the sport field
-          console.log('Using fallback logic for event without sport field:', event.activity_key);
-          
-          // For now, assume all activities without sport field are rowing
-          // This should be updated once all PR events have the sport field
-          return selectedSport === 'rower';
-        }
-      });
-      
-      console.log(`Activity ${stat.activity_key}: ${matchingSportEvents.length} matching sport events`);
-      
-      return matchingSportEvents.length > 0;
-    });
-    
-    console.log('Filtered PR stats count:', filtered.length);
-    return filtered;
-  }, [prStats, allPREvents, selectedSport]);
+      return activityEvents.some(event => event.sport === selectedSport);
+    }), 
+    [prStats, allPREvents, selectedSport]
+  );
 
   // Reason: Filter PR events using direct sport field (much more efficient)
-  const filteredPREvents = useMemo(() => {
-    console.log('Filtering PR events for sport:', selectedSport);
-    
-    const filtered = allPREvents.filter(event => {
-      // Use direct sport field if available, otherwise fall back to activity key analysis
-      if (event.sport) {
-        return event.sport === selectedSport;
-      } else {
-        // Fallback logic for old PR events without sport field
-        console.log('Using fallback logic for PR event without sport field:', event.activity_key);
-        
-        // For now, assume all activities without sport field are rowing
-        // This should be updated once all PR events have the sport field
-        return selectedSport === 'rower';
-      }
-    });
-    
-    console.log('Filtered PR events count:', filtered.length);
-    return filtered;
-  }, [allPREvents, selectedSport]);
+  const filteredPREvents = useMemo(() => 
+    allPREvents.filter(event => event.sport === selectedSport), 
+    [allPREvents, selectedSport]
+  );
 
   // Reason: Memoize loadDashboardData to prevent unnecessary recreations
   const loadDashboardData = useCallback(async () => {
@@ -238,8 +170,6 @@ export const DashboardPage: React.FC = () => {
       
       // Load all results once and derive everything from that
       const results = await firebaseService.getAllResults(user.uid);
-      console.log('Loaded results from Firebase:', results.length);
-      console.log('Sample results:', results.slice(0, 3).map(r => ({ id: r.id, type: r.type, distance: r.distance })));
       setAllResults(results);
       
       // Cache the results for future use
@@ -252,8 +182,6 @@ export const DashboardPage: React.FC = () => {
       
       // Load all PR events for the enhanced filtering
       const prEvents = await getPREvents();
-      console.log('Loaded PR events:', prEvents.length);
-      console.log('Sample PR events:', prEvents.slice(0, 3).map(e => ({ id: e.id, activity_key: e.activity_key, sport: e.sport })));
       setAllPREvents(prEvents);
       
       console.log(`Dashboard data loaded and cached: ${results.length} total results, ${prEvents.length} PR events`);
@@ -323,12 +251,6 @@ export const DashboardPage: React.FC = () => {
       default:
         return <RowingBoat className="w-5 h-5" />;
     }
-  };
-
-  // Debug: Add sport selection handler with logging
-  const handleSportSelection = (sport: SportType) => {
-    console.log('Sport selection changed from', selectedSport, 'to', sport);
-    setSelectedSport(sport);
   };
 
   // Reason: Show loading state only when we're actually loading data for a connected user
@@ -412,7 +334,7 @@ export const DashboardPage: React.FC = () => {
             {(['rower', 'bikeerg', 'skierg'] as SportType[]).map((sport) => (
               <button
                 key={sport}
-                onClick={() => handleSportSelection(sport)}
+                onClick={() => setSelectedSport(sport)}
                 className={`flex items-center justify-center space-x-3 py-4 px-6 rounded-xl font-semibold transition-all duration-200 ${
                   selectedSport === sport
                     ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg transform scale-105'
@@ -427,24 +349,6 @@ export const DashboardPage: React.FC = () => {
             ))}
           </div>
         </div>
-
-        {/* Debug Information */}
-        {import.meta.env.DEV && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-yellow-800 mb-2">Debug Info (Dev Only)</h3>
-            <div className="text-xs text-yellow-700 space-y-1">
-              <div>Selected Sport: {selectedSport}</div>
-              <div>Total Results: {allResults.length}</div>
-              <div>Filtered Results: {filteredResults.length}</div>
-              <div>Total PR Events: {allPREvents.length}</div>
-              <div>Filtered PR Events: {filteredPREvents.length}</div>
-              <div>Total PR Stats: {prStats.length}</div>
-              <div>Filtered PR Stats: {filteredPRStats.length}</div>
-              <div>Sports in Results: {[...new Set(allResults.map(r => r.type))].join(', ')}</div>
-              <div>Sports in PR Events: {[...new Set(allPREvents.map(e => e.sport).filter(Boolean))].join(', ')}</div>
-            </div>
-          </div>
-        )}
 
         {/* PR Error Alert */}
         {prError && (
