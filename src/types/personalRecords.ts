@@ -1,11 +1,11 @@
 // NEW: Sport filtering types
-export type SportType = 'rower' | 'bikeerg' | 'skierg';
+export type SportType = 'rower' | 'bike' | 'skierg';
 export type SportDisplayType = 'Row' | 'Bike' | 'Ski';
 
 // Sport mapping constant
 export const SPORT_MAPPING: Record<SportType, SportDisplayType> = {
   'rower': 'Row',
-  'bikeerg': 'Bike',
+  'bike': 'Bike',
   'skierg': 'Ski'
 };
 
@@ -13,7 +13,7 @@ export interface PRType {
   id: string;
   activity_name: string;        // Display name: "2K Row", "60min Row"
   activity_key: string;         // Unique identifier: "2k_row", "60min_row"
-  sport: string;               // "rower", "bikeerg", "skierg"
+  sport: string;               // "rower", "bike", "skierg"
   metric_type: "time" | "distance";
   target_distance: number | null;  // For distance-based activities (meters)
   target_time: number | null;      // For time-based activities (seconds)
