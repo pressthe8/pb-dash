@@ -1,11 +1,11 @@
 // NEW: Sport filtering types
-export type SportType = 'rower' | 'bikeerg' | 'skierg';
+export type SportType = 'rower' | 'bikeerg' | 'skierg'; // Keep 'bikeerg' as it comes from DB
 export type SportDisplayType = 'Row' | 'Bike' | 'Ski';
 
-// Sport mapping constant
+// Sport mapping constant - handle 'bikeerg' from database
 export const SPORT_MAPPING: Record<SportType, SportDisplayType> = {
   'rower': 'Row',
-  'bikeerg': 'Bike',
+  'bikeerg': 'Bike',  // Map 'bikeerg' from DB to 'Bike' display
   'skierg': 'Ski'
 };
 
@@ -68,3 +68,11 @@ export interface UserProfile {
   private: boolean;             // Profile privacy setting
   default_sport?: SportType;    // Default sport for dashboard
 }
+
+// Helper function to determine sport from activity key (DEPRECATED - use event.sport instead)
+export const getSportFromActivityKey = (activityKey: string): SportType => {
+  if (activityKey.includes('_row')) return 'rower';
+  if (activityKey.includes('_bike')) return 'bikeerg';  // Return 'bikeerg' to match DB
+  if (activityKey.includes('_ski')) return 'skierg';
+  return 'rower'; // fallback
+};
