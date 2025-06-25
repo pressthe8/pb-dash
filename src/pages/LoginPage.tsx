@@ -44,7 +44,7 @@ export const LoginPage: React.FC = () => {
           <div className="space-y-6">
             <div className="flex items-start space-x-4">
               <div className="p-2 bg-white/10 rounded-lg">
-                <TrendingUp className="w-6 h-6 text-white" />
+                <FlamingStopwatchLogo size="sm" className="text-white" />
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-white mb-2">Personal Best Tracking</h3>
