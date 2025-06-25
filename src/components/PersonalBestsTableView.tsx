@@ -1,20 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ChevronDown, ArrowLeft, Trophy, Clock, Zap, Target, Mountain, MapPin } from 'lucide-react';
-import { PRStats, PREvent, SportType, SPORT_MAPPING } from '../types/personalRecords';
+import * as PersonalRecordsTypes from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
 import { PRProgressionChart } from './PRProgressionChart';
 
 interface PersonalBestsTableViewProps {
-  prStats: PRStats[];
+  prStats: PersonalRecordsTypes.PRStats[];
   loading: boolean;
-  allPREvents: PREvent[];
-  selectedSport?: SportType;
+  allPREvents: PersonalRecordsTypes.PREvent[];
+  selectedSport?: PersonalRecordsTypes.SportType;
 }
 
 interface DetailViewData {
   activityKey: string;
   activityName: string;
-  allAttempts: PREvent[];
+  allAttempts: PersonalRecordsTypes.PREvent[];
 }
 
 type ViewMode = 'table' | 'detail';
@@ -92,7 +92,7 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
   }, [allPREvents]);
 
   // Display pace from PR event data
-  const displayPace = (event: PREvent): string => {
+  const displayPace = (event: PersonalRecordsTypes.PREvent): string => {
     if (event.pace_per_500m) {
       // pace_per_500m is already in tenths, so formatTime can use it directly
       return formatTime(event.pace_per_500m);
@@ -112,7 +112,7 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
   };
 
   // Format the PB value based on event type
-  const formatPBValue = (event: PREvent): string => {
+  const formatPBValue = (event: PersonalRecordsTypes.PREvent): string => {
     if (event.metric_type === 'time') {
       // Distance-based event: show time
       return formatTime(event.metric_value);
@@ -218,7 +218,7 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
   // Get filtered PR stats based on selected period
   const filteredPRStats = useMemo(() => {
     return prStats.map(stat => {
-      let selectedRecord: PREvent | null = null;
+      let selectedRecord: PersonalRecordsTypes.PREvent | null = null;
 
       if (selectedFilter === 'all-time') {
         selectedRecord = stat.all_time_record;
@@ -317,7 +317,7 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
   };
 
   // Check if an attempt is the all-time record
-  const isAllTimeRecord = (attempt: PREvent): boolean => {
+  const isAllTimeRecord = (attempt: PersonalRecordsTypes.PREvent): boolean => {
     return attempt.pr_scope.includes('all-time');
   };
 
@@ -346,10 +346,10 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
         </div>
         <div className="p-6 text-center">
           <h3 className="text-lg font-medium text-slate-900 mb-2">
-            No Personal Bests for {selectedSport ? SPORT_MAPPING[selectedSport] : 'Selected Sport'} Yet
+            No Personal Bests for {selectedSport ? PersonalRecordsTypes.SPORT_MAPPING[selectedSport] : 'Selected Sport'} Yet
           </h3>
           <p className="text-slate-600">
-            Complete some {selectedSport ? SPORT_MAPPING[selectedSport].toLowerCase() : 'selected sport'} workouts to start tracking your PBs.
+            Complete some {selectedSport ? PersonalRecordsTypes.SPORT_MAPPING[selectedSport].toLowerCase() : 'selected sport'} workouts to start tracking your PBs.
           </p>
         </div>
       </div>
@@ -480,7 +480,7 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
             <div>
               <h2 className="text-xl font-semibold text-slate-900">Personal Bests</h2>
               <p className="text-sm text-slate-600">
-                Your best {selectedSport ? SPORT_MAPPING[selectedSport].toLowerCase() : ''} performances across all events
+                Your best {selectedSport ? PersonalRecordsTypes.SPORT_MAPPING[selectedSport].toLowerCase() : ''} performances across all events
               </p>
             </div>
           </div>
