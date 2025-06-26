@@ -18,7 +18,8 @@ import {
   AlertTriangle,
   CheckCircle,
   Settings,
-  Shield
+  Shield,
+  LogOut
 } from 'lucide-react';
 
 // Extended profile interface that includes sync timestamp
@@ -32,7 +33,8 @@ export const ProfilePage: React.FC = () => {
     concept2Connected, 
     syncNewResults, 
     clearConcept2Connection,
-    syncStatus
+    syncStatus,
+    signOut
   } = useAuth();
   
   const [profile, setProfile] = useState<ExtendedUserProfile | null>(null);
@@ -264,6 +266,14 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error('Sign out failed:', error);
+    }
+  };
+
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'Unknown';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -321,26 +331,37 @@ export const ProfilePage: React.FC = () => {
         </div>
         
         <div className="p-6 space-y-6">
-          {/* Google Profile Info */}
-          <div className="flex items-center space-x-4">
-            <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-teal-500 rounded-full flex items-center justify-center">
-              {user?.photoURL ? (
-                <img 
-                  src={user.photoURL} 
-                  alt="Profile" 
-                  className="w-16 h-16 rounded-full"
-                />
-              ) : (
-                <User className="w-8 h-8 text-white" />
-              )}
+          {/* Google Profile Info with Sign Out Button */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-teal-500 rounded-full flex items-center justify-center">
+                {user?.photoURL ? (
+                  <img 
+                    src={user.photoURL} 
+                    alt="Profile" 
+                    className="w-16 h-16 rounded-full"
+                  />
+                ) : (
+                  <User className="w-8 h-8 text-white" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  {user?.displayName || 'User'}
+                </h3>
+                <p className="text-slate-600">{user?.email}</p>
+                <p className="text-sm text-slate-500">Google Account</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">
-                {user?.displayName || 'User'}
-              </h3>
-              <p className="text-slate-600">{user?.email}</p>
-              <p className="text-sm text-slate-500">Google Account</p>
-            </div>
+            
+            {/* Sign Out Button */}
+            <button
+              onClick={handleSignOut}
+              className="flex items-center space-x-2 px-4 py-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors duration-200"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="text-sm font-medium">Sign Out</span>
+            </button>
           </div>
 
           {/* Account Details Grid */}
