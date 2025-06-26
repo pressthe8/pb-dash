@@ -471,15 +471,15 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
   // Main Table View
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-      <div className="p-6 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50">
+      <div className="p-4 sm:p-6 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-gradient-to-r from-amber-500 to-yellow-500 rounded-lg">
               <Trophy className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-slate-900">Personal Bests</h2>
-              <p className="text-sm text-slate-600">
+              <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Personal Bests</h2>
+              <p className="text-xs sm:text-sm text-slate-600">
                 Your best {selectedSport ? SPORT_MAPPING[selectedSport].toLowerCase() : ''} performances across all events
               </p>
             </div>
@@ -491,7 +491,7 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
               <select
                 value={selectedFilter}
                 onChange={(e) => setSelectedFilter(e.target.value)}
-                className="appearance-none bg-white border border-slate-300 rounded-lg px-3 py-2 pr-8 text-sm font-medium text-slate-900 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                className="appearance-none bg-white border border-slate-300 rounded-lg px-2 sm:px-3 py-1 sm:py-2 pr-6 sm:pr-8 text-xs sm:text-sm font-medium text-slate-900 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
               >
                 {availablePeriods.map(period => (
                   <option key={period} value={period}>
@@ -499,13 +499,13 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
                   </option>
                 ))}
               </select>
-              <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <ChevronDown className="absolute right-1 sm:right-2 top-1/2 transform -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-slate-400 pointer-events-none" />
             </div>
           )}
         </div>
       </div>
       
-      <div className="p-6">
+      <div className="p-3 sm:p-6">
         {filteredPRStats.length === 0 ? (
           <div className="text-center py-8">
             <Trophy className="w-12 h-12 text-slate-400 mx-auto mb-4" />
@@ -519,16 +519,13 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
             <table className="w-full">
               <thead>
                 <tr className="border-b-2 border-slate-200">
-                  <th className="text-left py-4 px-4 font-semibold text-slate-800 bg-slate-50 rounded-tl-lg">
+                  <th className="text-left py-3 px-2 sm:px-4 font-semibold text-slate-800 bg-slate-50 rounded-tl-lg text-sm">
                     Event
                   </th>
-                  <th className="text-left py-4 px-4 font-semibold text-slate-800 bg-slate-50">
+                  <th className="text-left py-3 px-2 sm:px-4 font-semibold text-slate-800 bg-slate-50 text-sm">
                     {getPBColumnHeader()}
                   </th>
-                  <th className="text-left py-4 px-4 font-semibold text-slate-800 bg-slate-50 hidden sm:table-cell">
-                    Average Pace (/500m)
-                  </th>
-                  <th className="text-left py-4 px-4 font-semibold text-slate-800 bg-slate-50 rounded-tr-lg">
+                  <th className="text-left py-3 px-2 sm:px-4 font-semibold text-slate-800 bg-slate-50 rounded-tr-lg text-sm">
                     Date
                   </th>
                 </tr>
@@ -544,35 +541,30 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
                       className="border-b border-slate-100 hover:bg-gradient-to-r hover:from-slate-50 hover:to-blue-50 cursor-pointer transition-all duration-200 group"
                       onClick={() => handleRowClick(stat)}
                     >
-                      <td className="py-4 px-4">
-                        <div className="flex items-center space-x-3">
-                          {/* Hide icon on mobile (sm and below), show on larger screens */}
-                          <div className={`p-2 ${iconAndColors.bg} ${iconAndColors.border} border rounded-lg group-hover:scale-110 transition-transform duration-200 hidden sm:block`}>
+                      <td className="py-3 px-2 sm:px-4">
+                        <div className="flex items-center space-x-2 sm:space-x-3">
+                          {/* Show icon only on larger screens to save space */}
+                          <div className={`p-1.5 sm:p-2 ${iconAndColors.bg} ${iconAndColors.border} border rounded-lg group-hover:scale-110 transition-transform duration-200 hidden sm:block`}>
                             <div className={iconAndColors.iconColor}>
                               {iconAndColors.icon}
                             </div>
                           </div>
-                          <span className="font-medium text-slate-900 group-hover:text-blue-700 transition-colors duration-200">
+                          <span className="font-medium text-slate-900 group-hover:text-blue-700 transition-colors duration-200 text-sm sm:text-base">
                             {stat.activity_name}
                           </span>
                         </div>
                       </td>
-                      <td className="py-4 px-4">
-                        <div className="flex items-center space-x-2">
+                      <td className="py-3 px-2 sm:px-4">
+                        <div className="flex items-center space-x-1 sm:space-x-2">
                           {showTrophy && (
-                            <Trophy className="w-4 h-4 text-amber-500" />
+                            <Trophy className="w-3 h-3 sm:w-4 sm:h-4 text-amber-500 flex-shrink-0" />
                           )}
-                          <span className="text-slate-900 font-medium">
+                          <span className="text-slate-900 font-medium text-sm sm:text-base">
                             {stat.selectedRecord && formatPBValue(stat.selectedRecord)}
                           </span>
                         </div>
                       </td>
-                      <td className="py-4 px-4 text-slate-600 hidden sm:table-cell">
-                        <span className="px-2 py-1 bg-slate-100 rounded-md text-sm font-mono">
-                          {stat.selectedRecord ? displayPace(stat.selectedRecord) : 'N/A'}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4 text-slate-600">
+                      <td className="py-3 px-2 sm:px-4 text-slate-600 text-xs sm:text-sm">
                         {stat.selectedRecord && formatDate(stat.selectedRecord.achieved_at)}
                       </td>
                     </tr>
