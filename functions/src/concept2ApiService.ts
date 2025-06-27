@@ -1,8 +1,24 @@
 import { defineSecret } from 'firebase-functions/params';
 import { OAuthTokens, Concept2ApiResponse } from './types';
 
-const CONCEPT2_BASE_URL = 'https://log-dev.concept2.com/api';
-const OAUTH_BASE_URL = 'https://log-dev.concept2.com/oauth';
+// Environment-based URL configuration for Cloud Functions
+// Reason: Check functions config instead of process.env for Firebase Functions
+const getEnvironmentConfig = () => {
+  try {
+    // Try to get environment from functions config
+    const functions = require('firebase-functions');
+    const environment = functions.config().environment;
+    return environment;
+  } catch (error) {
+    // Fallback to 'dev' if config is not available
+    console.log('Functions config not available, defaulting to dev environment');
+    return 'dev';
+  }
+};
+
+const isDev = getEnvironmentConfig() !== 'prod';
+const CONCEPT2_BASE_URL = isDev ? 'https://log-dev.concept2.com/api' : 'https://log.concept2.com/api';
+const OAUTH_BASE_URL = isDev ? 'https://log-dev.concept2.com/oauth' : 'https://log.concept2.com/oauth';
 
 // Define secrets for v2 functions
 const concept2ClientId = defineSecret('CONCEPT2_CLIENT_ID');
@@ -22,6 +38,8 @@ export class Concept2ApiService {
     }
     
     console.log('Concept2ApiService initialized with client ID:', this.clientId ? 'present' : 'missing');
+    console.log('Environment:', isDev ? 'development' : 'production');
+    console.log('Base URL:', CONCEPT2_BASE_URL);
   }
 
   /**
