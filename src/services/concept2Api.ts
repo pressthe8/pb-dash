@@ -1,7 +1,9 @@
 import { OAuthTokens, Concept2ApiResponse } from '../types/concept2';
 
-const CONCEPT2_BASE_URL = 'https://log-dev.concept2.com/api';
-const OAUTH_BASE_URL = 'https://log-dev.concept2.com/oauth';
+// Environment-based URL configuration
+const isDev = import.meta.env.VITE_ENVIRONMENT !== 'prod';
+const CONCEPT2_BASE_URL = isDev ? 'https://log-dev.concept2.com/api' : 'https://log.concept2.com/api';
+const OAUTH_BASE_URL = isDev ? 'https://log-dev.concept2.com/oauth' : 'https://log.concept2.com/oauth';
 
 export class Concept2ApiService {
   private static instance: Concept2ApiService;
