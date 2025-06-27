@@ -1,9 +1,10 @@
 import { OAuthTokens, Concept2ApiResponse } from '../types/concept2';
 
 // Environment-based URL configuration
-const isDev = import.meta.env.VITE_ENVIRONMENT !== 'prod';
-const CONCEPT2_BASE_URL = isDev ? 'https://log-dev.concept2.com/api' : 'https://log.concept2.com/api';
-const OAUTH_BASE_URL = isDev ? 'https://log-dev.concept2.com/oauth' : 'https://log.concept2.com/oauth';
+// Reason: Check for explicit production environment variable
+const isProduction = import.meta.env.VITE_ENVIRONMENT === 'prod' || import.meta.env.PROD;
+const CONCEPT2_BASE_URL = isProduction ? 'https://log.concept2.com/api' : 'https://log-dev.concept2.com/api';
+const OAUTH_BASE_URL = isProduction ? 'https://log.concept2.com/oauth' : 'https://log-dev.concept2.com/oauth';
 
 export class Concept2ApiService {
   private static instance: Concept2ApiService;
@@ -43,6 +44,9 @@ export class Concept2ApiService {
       console.error('Quote characters detected in credentials');
       throw new Error('Concept2 API credentials contain quote characters. Please remove quotes from your .env file values.');
     }
+    
+    console.log('Environment:', isProduction ? 'production' : 'development');
+    console.log('Base URL:', CONCEPT2_BASE_URL);
     
     return { clientId: trimmedClientId, clientSecret: trimmedClientSecret };
   }
