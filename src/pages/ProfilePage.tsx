@@ -44,6 +44,10 @@ export const ProfilePage: React.FC = () => {
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
+  
+  // New state for PR reprocessing
+  const [prReprocessing, setPrReprocessing] = useState(false);
+  const [prReprocessComplete, setPrReprocessComplete] = useState(false);
 
   const firebaseService = FirebaseService.getInstance();
   const cloudFunctions = CloudFunctionsService.getInstance();
@@ -52,6 +56,16 @@ export const ProfilePage: React.FC = () => {
   useEffect(() => {
     loadProfile();
   }, [user]);
+
+  // Clear PR reprocess completion status after 3 seconds
+  useEffect(() => {
+    if (prReprocessComplete) {
+      const timer = setTimeout(() => {
+        setPrReprocessComplete(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [prReprocessComplete]);
 
   const loadProfile = async () => {
     if (!user?.uid) return;
@@ -202,13 +216,24 @@ export const ProfilePage: React.FC = () => {
     if (!user) return;
     
     try {
+      setPrReprocessing(true);
+      setPrReprocessComplete(false);
+      
+      console.log('Starting PR recalculation via Cloud Function');
       await cloudFunctions.processAllResultsForPRs(user.uid);
+      console.log('PR recalculation completed successfully');
       
       // Reason: Invalidate PR-related cache after recalculation
       await cacheService.invalidateCache(user.uid, 'prStats');
       await cacheService.invalidateCache(user.uid, 'prEvents');
+      
+      // Show completion status
+      setPrReprocessComplete(true);
     } catch (error) {
       console.error('Error recalculating PRs:', error);
+      // Could add error state here if needed
+    } finally {
+      setPrReprocessing(false);
     }
   };
 
@@ -303,6 +328,25 @@ export const ProfilePage: React.FC = () => {
       default:
         return 'Sync New Data';
     }
+  };
+
+  const getPRButtonText = () => {
+    if (prReprocessing) return 'Recalculating...';
+    if (prReprocessComplete) return 'Completed!';
+    return 'Recalculate All PRs';
+  };
+
+  const getPRButtonIcon = () => {
+    if (prReprocessing) return <LoadingSpinner size="sm" className="text-white" />;
+    if (prReprocessComplete) return <CheckCircle className="w-4 h-4" />;
+    return <Trophy className="w-4 h-4" />;
+  };
+
+  const getPRButtonStyle = () => {
+    if (prReprocessComplete) {
+      return 'bg-green-500 hover:bg-green-600';
+    }
+    return 'bg-amber-500 hover:bg-amber-600';
   };
 
   if (loading) {
@@ -481,11 +525,11 @@ export const ProfilePage: React.FC = () => {
               
               <button
                 onClick={handleRecalculatePRs}
-                disabled={syncStatus !== 'idle' || !concept2Connected}
-                className="flex items-center justify-center space-x-2 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={syncStatus !== 'idle' || !concept2Connected || prReprocessing}
+                className={`flex items-center justify-center space-x-2 px-4 py-2 text-white rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${getPRButtonStyle()}`}
               >
-                <Trophy className="w-4 h-4" />
-                <span>Recalculate All PRs</span>
+                {getPRButtonIcon()}
+                <span>{getPRButtonText()}</span>
               </button>
             </div>
             

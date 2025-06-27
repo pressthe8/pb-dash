@@ -60,3 +60,8 @@
 - [x] **COMPLETED**: Added sport-specific icons (rowing boat, bike, mountain) to filter buttons
 - [x] **COMPLETED**: Enhanced sport filter with gradient backgrounds and hover effects
 - [x] **COMPLETED**: Improved visual hierarchy with larger, more prominent sport selection
+
+### GitHub Actions Deployment Trigger Disabled - June 8, 2025 10:30 AM
+- [x] **COMPLETED**: Commented out automatic deployment trigger in deploy-functions.yml workflow
+- [x] **COMPLETED**: Maintained manual workflow_dispatch trigger for controlled deployments
+- [x] **COMPLETED**: Prevented automatic Cloud Functions deployment on main branch pushes

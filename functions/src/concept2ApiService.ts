@@ -2,21 +2,23 @@ import { defineSecret } from 'firebase-functions/params';
 import { OAuthTokens, Concept2ApiResponse } from './types';
 
 // Environment-based URL configuration for Cloud Functions
-// Reason: Check functions config for app.environment instead of just environment
-const getEnvironmentConfig = () => {
-  try {
-    // Try to get environment from functions config (app.environment)
-    const functions = require('firebase-functions');
-    const environment = functions.config().app?.environment;
-    return environment || 'dev'; // Default to 'dev' if not set
-  } catch (error) {
-    // Fallback to 'dev' if config is not available
-    console.log('Functions config not available, defaulting to dev environment');
+// Reason: Use process.env or a more reliable method for environment detection
+const getEnvironment = (): string => {
+  // Check if we're in production by looking at the project ID or other indicators
+  const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT;
+  
+  // If project ID contains 'dev' or 'test', assume development
+  if (projectId && (projectId.includes('dev') || projectId.includes('test'))) {
     return 'dev';
   }
+  
+  // For production project, default to production
+  // You can also check other environment indicators here
+  return 'prod';
 };
 
-const isDev = getEnvironmentConfig() !== 'prod';
+const environment = getEnvironment();
+const isDev = environment === 'dev';
 const CONCEPT2_BASE_URL = isDev ? 'https://log-dev.concept2.com/api' : 'https://log.concept2.com/api';
 const OAUTH_BASE_URL = isDev ? 'https://log-dev.concept2.com/oauth' : 'https://log.concept2.com/oauth';
 
@@ -38,7 +40,8 @@ export class Concept2ApiService {
     }
     
     console.log('Concept2ApiService initialized with client ID:', this.clientId ? 'present' : 'missing');
-    console.log('Environment:', isDev ? 'development' : 'production');
+    console.log('Environment:', environment);
+    console.log('Project ID:', process.env.GCLOUD_PROJECT || 'unknown');
     console.log('Base URL:', CONCEPT2_BASE_URL);
   }
 
