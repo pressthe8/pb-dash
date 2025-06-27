@@ -2,13 +2,13 @@ import { defineSecret } from 'firebase-functions/params';
 import { OAuthTokens, Concept2ApiResponse } from './types';
 
 // Environment-based URL configuration for Cloud Functions
-// Reason: Check functions config instead of process.env for Firebase Functions
+// Reason: Check functions config for app.environment instead of just environment
 const getEnvironmentConfig = () => {
   try {
-    // Try to get environment from functions config
+    // Try to get environment from functions config (app.environment)
     const functions = require('firebase-functions');
-    const environment = functions.config().environment;
-    return environment;
+    const environment = functions.config().app?.environment;
+    return environment || 'dev'; // Default to 'dev' if not set
   } catch (error) {
     // Fallback to 'dev' if config is not available
     console.log('Functions config not available, defaulting to dev environment');
