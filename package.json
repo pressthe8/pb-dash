@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "init-pr-types": "node scripts/uploadPRTypes.js"
+    "init-pr-types": "node scripts/initializePRTypes.js"
   },
   "dependencies": {
     "@nivo/core": "^0.87.0",
