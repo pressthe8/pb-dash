@@ -103,43 +103,42 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
     setIsGenerating(true);
     
     try {
-      // Create a temporary div for rendering
+      // Create a temporary div for rendering - ULTRA COMPACT
       const tempDiv = document.createElement('div');
       tempDiv.style.position = 'absolute';
       tempDiv.style.left = '-9999px';
       tempDiv.style.top = '-9999px';
-      tempDiv.style.width = '800px';
-      tempDiv.style.height = '200px';
       tempDiv.style.backgroundColor = '#ffffff';
       tempDiv.style.fontFamily = 'Arial, sans-serif';
-      tempDiv.style.padding = '20px';
-      tempDiv.style.boxSizing = 'border-box';
+      tempDiv.style.padding = '0';
+      tempDiv.style.margin = '0';
+      tempDiv.style.border = 'none';
 
       // Get events and sort by display order
       const events = SPORT_EVENTS[selectedSport].sort((a, b) => a.displayOrder - b.displayOrder);
       const currentSeason = getCurrentSeason();
 
-      // Create table HTML
+      // Create ultra-compact table HTML with alternating colors
       tempDiv.innerHTML = `
-        <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+        <table style="border-collapse: collapse; font-size: 9px; font-family: Arial, sans-serif; margin: 0; padding: 0;">
           <!-- Row 1: Event Headers -->
-          <tr style="border-bottom: 1px solid #000;">
-            <td style="padding: 4px 6px; font-weight: bold; text-align: left; width: 60px;">PB</td>
-            ${events.map(event => `
-              <td style="padding: 4px 6px; font-weight: bold; text-align: center; width: ${(740 / events.length)}px;">
+          <tr style="background-color: #e6f3ff;">
+            <td style="padding: 2px 4px; font-weight: bold; text-align: left; border: 1px solid #000; width: 40px;">PB</td>
+            ${events.map((event, index) => `
+              <td style="padding: 2px 4px; font-weight: bold; text-align: center; border: 1px solid #000; width: 50px; background-color: ${index % 2 === 0 ? '#e6f3ff' : '#f0f8ff'};">
                 ${event.label}
               </td>
             `).join('')}
           </tr>
           
           <!-- Row 2: Record Values -->
-          <tr style="border-bottom: 1px solid #ccc;">
-            <td style="padding: 4px 6px; font-weight: bold; text-align: left;">Record</td>
-            ${events.map(event => {
+          <tr style="background-color: #ffffff;">
+            <td style="padding: 2px 4px; font-weight: bold; text-align: left; border: 1px solid #000;">Record</td>
+            ${events.map((event, index) => {
               const stat = getStatForEvent(event.key);
               const value = stat ? formatValue(stat, event) : '-';
               return `
-                <td style="padding: 4px 6px; font-weight: bold; text-align: center;">
+                <td style="padding: 2px 4px; font-weight: bold; text-align: center; border: 1px solid #000; background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f8f8'};">
                   ${value}
                 </td>
               `;
@@ -147,13 +146,13 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
           </tr>
           
           <!-- Row 3: Dates -->
-          <tr style="border-bottom: 1px solid #ccc;">
-            <td style="padding: 4px 6px; font-weight: bold; text-align: left;">Date</td>
-            ${events.map(event => {
+          <tr style="background-color: #ffffff;">
+            <td style="padding: 2px 4px; font-weight: bold; text-align: left; border: 1px solid #000;">Date</td>
+            ${events.map((event, index) => {
               const stat = getStatForEvent(event.key);
               const date = stat?.all_time_record ? formatDate(stat.all_time_record.achieved_at) : '-';
               return `
-                <td style="padding: 4px 6px; text-align: center; color: #666;">
+                <td style="padding: 2px 4px; text-align: center; border: 1px solid #000; background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f8f8'};">
                   ${date}
                 </td>
               `;
@@ -161,13 +160,13 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
           </tr>
           
           <!-- Row 4: Season Records -->
-          <tr>
-            <td style="padding: 4px 6px; font-weight: bold; text-align: left;">${currentSeason} SB</td>
-            ${events.map(event => {
+          <tr style="background-color: #e6f3ff;">
+            <td style="padding: 2px 4px; font-weight: bold; text-align: left; border: 1px solid #000;">${currentSeason} SB</td>
+            ${events.map((event, index) => {
               const stat = getStatForEvent(event.key);
               const value = stat ? formatValue(stat, event, true) : '-';
               return `
-                <td style="padding: 4px 6px; text-align: center;">
+                <td style="padding: 2px 4px; text-align: center; border: 1px solid #000; background-color: ${index % 2 === 0 ? '#e6f3ff' : '#f0f8ff'};">
                   ${value}
                 </td>
               `;
@@ -183,11 +182,11 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
       
       const canvas = await html2canvas(tempDiv, {
         backgroundColor: '#ffffff',
-        scale: 2, // Higher resolution
+        scale: 3, // Higher resolution for crisp text
         useCORS: true,
         allowTaint: true,
-        width: 800,
-        height: 200,
+        logging: false,
+        removeContainer: true,
       });
 
       // Clean up
@@ -206,7 +205,9 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
     if (!generatedImageUrl) return;
 
     const link = document.createElement('a');
-    link.download = `${userDisplayName.replace(/\s+/g, '_')}_${SPORT_MAPPING[selectedSport]}_PBs.png`;
+    // Updated filename format: name_pbdash_export.png
+    const cleanName = userDisplayName.replace(/\s+/g, '_').toLowerCase();
+    link.download = `${cleanName}_pbdash_export.png`;
     link.href = generatedImageUrl;
     link.click();
   };
@@ -283,25 +284,25 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
         {/* Preview Table */}
         <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6">
           <h3 className="text-sm font-medium text-slate-700 mb-3">Preview</h3>
-          <div className="bg-white p-4 rounded border text-xs">
+          <div className="bg-white p-2 rounded border text-xs overflow-x-auto">
             <table className="w-full border-collapse">
               {/* Row 1: Event Headers */}
-              <tr className="border-b border-slate-900">
-                <td className="py-1 px-2 font-bold text-left w-16">PB</td>
-                {events.map(event => (
-                  <td key={event.key} className="py-1 px-2 font-bold text-center">
+              <tr className="bg-blue-50">
+                <td className="py-1 px-2 font-bold text-left border border-slate-400 w-12">PB</td>
+                {events.map((event, index) => (
+                  <td key={event.key} className={`py-1 px-2 font-bold text-center border border-slate-400 ${index % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100'}`}>
                     {event.label}
                   </td>
                 ))}
               </tr>
 
               {/* Row 2: Record Values */}
-              <tr className="border-b border-slate-300">
-                <td className="py-1 px-2 font-bold text-left">Record</td>
-                {events.map(event => {
+              <tr>
+                <td className="py-1 px-2 font-bold text-left border border-slate-400">Record</td>
+                {events.map((event, index) => {
                   const stat = getStatForEvent(event.key);
                   return (
-                    <td key={event.key} className="py-1 px-2 font-bold text-center">
+                    <td key={event.key} className={`py-1 px-2 font-bold text-center border border-slate-400 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
                       {stat ? formatValue(stat, event) : '-'}
                     </td>
                   );
@@ -309,12 +310,12 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
               </tr>
 
               {/* Row 3: Dates */}
-              <tr className="border-b border-slate-300">
-                <td className="py-1 px-2 font-bold text-left">Date</td>
-                {events.map(event => {
+              <tr>
+                <td className="py-1 px-2 font-bold text-left border border-slate-400">Date</td>
+                {events.map((event, index) => {
                   const stat = getStatForEvent(event.key);
                   return (
-                    <td key={event.key} className="py-1 px-2 text-center text-slate-600">
+                    <td key={event.key} className={`py-1 px-2 text-center border border-slate-400 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
                       {stat?.all_time_record ? formatDate(stat.all_time_record.achieved_at) : '-'}
                     </td>
                   );
@@ -322,12 +323,12 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
               </tr>
 
               {/* Row 4: Season Records */}
-              <tr>
-                <td className="py-1 px-2 font-bold text-left">{currentSeason} SB</td>
-                {events.map(event => {
+              <tr className="bg-blue-50">
+                <td className="py-1 px-2 font-bold text-left border border-slate-400">{currentSeason} SB</td>
+                {events.map((event, index) => {
                   const stat = getStatForEvent(event.key);
                   return (
-                    <td key={event.key} className="py-1 px-2 text-center">
+                    <td key={event.key} className={`py-1 px-2 text-center border border-slate-400 ${index % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100'}`}>
                       {stat ? formatValue(stat, event, true) : '-'}
                     </td>
                   );
