@@ -78,26 +78,27 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
     return `${seasonStartYear.toString().slice(-2)}/${seasonEndYear.toString().slice(-2)}`;
   };
 
-  // Format value based on event type
+  // Format value based on event type - FIXED: Time events now show metres instead of km
   const formatValue = (stat: PRStats, eventConfig: EventConfig, isSeasonRecord: boolean = false): string => {
     const record = isSeasonRecord ? stat.current_season_record : stat.all_time_record;
     if (!record) return '-';
 
     if (eventConfig.isTimeEvent) {
-      // Time events show distance achieved
-      return `${(record.metric_value / 1000).toFixed(1)}k`;
+      // Time events show distance achieved - FIXED: Show in metres, not km
+      return `${record.metric_value}m`;
     } else {
       // Distance events show time taken
       return formatTime(record.metric_value);
     }
   };
 
-  // Format date as MM/YY
+  // Format date as DD/MM/YY - FIXED: Now includes day
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
+    const day = date.getDate().toString().padStart(2, '0');
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const year = date.getFullYear().toString().slice(-2);
-    return `${month}/${year}`;
+    return `${day}/${month}/${year}`;
   };
 
   // Get stat for specific event
@@ -154,7 +155,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
         ctx.fillStyle = '#000000';
         ctx.font = isBold ? 'bold 8px Arial, sans-serif' : '8px Arial, sans-serif';
         
-        // Handle multi-line text for season cell
+        // Handle multi-line text for season cell (now just the season, no "SB")
         if (text.includes('\n')) {
           const lines = text.split('\n');
           const lineHeight = 4;
@@ -204,9 +205,9 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
         currentX += cellWidth;
       });
 
-      // Row 4: Season Records
+      // Row 4: Season Records - FIXED: Removed "SB" suffix
       currentX = 0;
-      drawCell(currentX, cellHeight * 3, pbCellWidth, cellHeight, `${currentSeason}\nSB`, '#e6f3ff', true);
+      drawCell(currentX, cellHeight * 3, pbCellWidth, cellHeight, currentSeason, '#e6f3ff', true);
       currentX += pbCellWidth;
 
       events.forEach((event, index) => {
@@ -347,9 +348,9 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
                 })}
               </tr>
 
-              {/* Row 4: Season Records */}
+              {/* Row 4: Season Records - FIXED: Removed "SB" suffix */}
               <tr className="bg-blue-50">
-                <td className="py-1 px-2 font-bold text-center border border-slate-400">{currentSeason} SB</td>
+                <td className="py-1 px-2 font-bold text-center border border-slate-400">{currentSeason}</td>
                 {events.map((event, index) => {
                   const stat = getStatForEvent(event.key);
                   return (
