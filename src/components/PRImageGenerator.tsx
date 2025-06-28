@@ -109,94 +109,113 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
     setIsGenerating(true);
     
     try {
-      // Create a temporary div for rendering - ULTRA COMPACT with FIXED SIZING
-      const tempDiv = document.createElement('div');
-      tempDiv.style.position = 'absolute';
-      tempDiv.style.left = '-9999px';
-      tempDiv.style.top = '-9999px';
-      tempDiv.style.backgroundColor = '#ffffff';
-      tempDiv.style.fontFamily = 'Arial, sans-serif';
-      tempDiv.style.padding = '0';
-      tempDiv.style.margin = '0';
-      tempDiv.style.border = 'none';
-
       // Get events and sort by display order
       const events = SPORT_EVENTS[selectedSport].sort((a, b) => a.displayOrder - b.displayOrder);
       const currentSeason = getCurrentSeason();
 
-      // Create ultra-compact table HTML with alternating colors and FIXED SIZING
-      tempDiv.innerHTML = `
-        <table style="border-collapse: collapse; font-size: 8px; font-family: Arial, sans-serif; margin: 0; padding: 0;">
-          <!-- Row 1: Event Headers -->
-          <tr style="background-color: #e6f3ff;">
-            <td style="padding: 1px 2px; font-weight: bold; text-align: center; vertical-align: middle; border: 1px solid #000; width: 50px; min-width: 50px;">PB</td>
-            ${events.map((event, index) => `
-              <td style="padding: 1px 2px; font-weight: bold; text-align: center; vertical-align: middle; border: 1px solid #000; width: 40px; min-width: 40px; background-color: ${index % 2 === 0 ? '#e6f3ff' : '#f0f8ff'};">
-                ${event.label}
-              </td>
-            `).join('')}
-          </tr>
-          
-          <!-- Row 2: Record Values -->
-          <tr style="background-color: #ffffff;">
-            <td style="padding: 1px 2px; font-weight: bold; text-align: center; vertical-align: middle; border: 1px solid #000;">Record</td>
-            ${events.map((event, index) => {
-              const stat = getStatForEvent(event.key);
-              const value = stat ? formatValue(stat, event) : '-';
-              return `
-                <td style="padding: 1px 2px; font-weight: bold; text-align: center; vertical-align: middle; border: 1px solid #000; background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f8f8'};">
-                  ${value}
-                </td>
-              `;
-            }).join('')}
-          </tr>
-          
-          <!-- Row 3: Dates -->
-          <tr style="background-color: #ffffff;">
-            <td style="padding: 1px 2px; font-weight: bold; text-align: center; vertical-align: middle; border: 1px solid #000;">Date</td>
-            ${events.map((event, index) => {
-              const stat = getStatForEvent(event.key);
-              const date = stat?.all_time_record ? formatDate(stat.all_time_record.achieved_at) : '-';
-              return `
-                <td style="padding: 1px 2px; text-align: center; vertical-align: middle; border: 1px solid #000; background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f8f8'};">
-                  ${date}
-                </td>
-              `;
-            }).join('')}
-          </tr>
-          
-          <!-- Row 4: Season Records -->
-          <tr style="background-color: #e6f3ff;">
-            <td style="padding: 1px 2px; font-weight: bold; text-align: center; vertical-align: middle; border: 1px solid #000;">${currentSeason}<br>SB</td>
-            ${events.map((event, index) => {
-              const stat = getStatForEvent(event.key);
-              const value = stat ? formatValue(stat, event, true) : '-';
-              return `
-                <td style="padding: 1px 2px; text-align: center; vertical-align: middle; border: 1px solid #000; background-color: ${index % 2 === 0 ? '#e6f3ff' : '#f0f8ff'};">
-                  ${value}
-                </td>
-              `;
-            }).join('')}
-          </tr>
-        </table>
-      `;
+      // Canvas dimensions - targeting 650x50 like your reference
+      const cellWidth = 45;
+      const cellHeight = 12;
+      const pbCellWidth = 50; // Wider for PB column
+      const totalWidth = pbCellWidth + (events.length * cellWidth);
+      const totalHeight = cellHeight * 4; // 4 rows
 
-      document.body.appendChild(tempDiv);
+      // Create canvas
+      const canvas = document.createElement('canvas');
+      canvas.width = totalWidth;
+      canvas.height = totalHeight;
+      const ctx = canvas.getContext('2d')!;
 
-      // Dynamically import html2canvas
-      const html2canvas = (await import('html2canvas')).default;
-      
-      const canvas = await html2canvas(tempDiv, {
-        backgroundColor: '#ffffff',
-        scale: 4, // Even higher resolution for crisp text
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        removeContainer: true,
+      // Set high DPI for crisp text
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = totalWidth * dpr;
+      canvas.height = totalHeight * dpr;
+      canvas.style.width = totalWidth + 'px';
+      canvas.style.height = totalHeight + 'px';
+      ctx.scale(dpr, dpr);
+
+      // Font settings
+      ctx.font = '8px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      // Helper function to draw cell with border and background
+      const drawCell = (x: number, y: number, width: number, height: number, text: string, bgColor: string, isBold: boolean = false) => {
+        // Fill background
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(x, y, width, height);
+        
+        // Draw border
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, width, height);
+        
+        // Draw text
+        ctx.fillStyle = '#000000';
+        ctx.font = isBold ? 'bold 8px Arial, sans-serif' : '8px Arial, sans-serif';
+        
+        // Handle multi-line text for season cell
+        if (text.includes('\n')) {
+          const lines = text.split('\n');
+          const lineHeight = 4;
+          const startY = y + height/2 - (lines.length - 1) * lineHeight/2;
+          lines.forEach((line, index) => {
+            ctx.fillText(line, x + width/2, startY + index * lineHeight);
+          });
+        } else {
+          ctx.fillText(text, x + width/2, y + height/2);
+        }
+      };
+
+      // Row 1: Headers
+      let currentX = 0;
+      drawCell(currentX, 0, pbCellWidth, cellHeight, 'PB', '#e6f3ff', true);
+      currentX += pbCellWidth;
+
+      events.forEach((event, index) => {
+        const bgColor = index % 2 === 0 ? '#e6f3ff' : '#f0f8ff';
+        drawCell(currentX, 0, cellWidth, cellHeight, event.label, bgColor, true);
+        currentX += cellWidth;
       });
 
-      // Clean up
-      document.body.removeChild(tempDiv);
+      // Row 2: Records
+      currentX = 0;
+      drawCell(currentX, cellHeight, pbCellWidth, cellHeight, 'Record', '#ffffff', true);
+      currentX += pbCellWidth;
+
+      events.forEach((event, index) => {
+        const stat = getStatForEvent(event.key);
+        const value = stat ? formatValue(stat, event) : '-';
+        const bgColor = index % 2 === 0 ? '#ffffff' : '#f8f8f8';
+        drawCell(currentX, cellHeight, cellWidth, cellHeight, value, bgColor, true);
+        currentX += cellWidth;
+      });
+
+      // Row 3: Dates
+      currentX = 0;
+      drawCell(currentX, cellHeight * 2, pbCellWidth, cellHeight, 'Date', '#ffffff', true);
+      currentX += pbCellWidth;
+
+      events.forEach((event, index) => {
+        const stat = getStatForEvent(event.key);
+        const date = stat?.all_time_record ? formatDate(stat.all_time_record.achieved_at) : '-';
+        const bgColor = index % 2 === 0 ? '#ffffff' : '#f8f8f8';
+        drawCell(currentX, cellHeight * 2, cellWidth, cellHeight, date, bgColor, false);
+        currentX += cellWidth;
+      });
+
+      // Row 4: Season Records
+      currentX = 0;
+      drawCell(currentX, cellHeight * 3, pbCellWidth, cellHeight, `${currentSeason}\nSB`, '#e6f3ff', true);
+      currentX += pbCellWidth;
+
+      events.forEach((event, index) => {
+        const stat = getStatForEvent(event.key);
+        const value = stat ? formatValue(stat, event, true) : '-';
+        const bgColor = index % 2 === 0 ? '#e6f3ff' : '#f0f8ff';
+        drawCell(currentX, cellHeight * 3, cellWidth, cellHeight, value, bgColor, false);
+        currentX += cellWidth;
+      });
 
       const imageUrl = canvas.toDataURL('image/png');
       setGeneratedImageUrl(imageUrl);
