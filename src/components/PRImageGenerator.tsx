@@ -16,7 +16,7 @@ interface EventConfig {
   displayOrder: number;
 }
 
-// Event configurations for each sport with proper display order
+// Event configurations for each sport with proper display order - ADDED MISSING 1min and 4min
 const SPORT_EVENTS: Record<SportType, EventConfig[]> = {
   rower: [
     { key: '100m_row', label: '100m', isTimeEvent: false, displayOrder: 1 },
@@ -26,10 +26,12 @@ const SPORT_EVENTS: Record<SportType, EventConfig[]> = {
     { key: '5k_row', label: '5K', isTimeEvent: false, displayOrder: 5 },
     { key: '6k_row', label: '6K', isTimeEvent: false, displayOrder: 6 },
     { key: '10k_row', label: '10K', isTimeEvent: false, displayOrder: 7 },
-    { key: '30min_row', label: '30min', isTimeEvent: true, displayOrder: 8 },
-    { key: '60min_row', label: '60min', isTimeEvent: true, displayOrder: 9 },
-    { key: 'half_marathon_row', label: 'HM', isTimeEvent: false, displayOrder: 10 },
-    { key: 'marathon_row', label: 'FM', isTimeEvent: false, displayOrder: 11 },
+    { key: '1min_row', label: '1min', isTimeEvent: true, displayOrder: 8 },
+    { key: '4min_row', label: '4min', isTimeEvent: true, displayOrder: 9 },
+    { key: '30min_row', label: '30min', isTimeEvent: true, displayOrder: 10 },
+    { key: '60min_row', label: '60min', isTimeEvent: true, displayOrder: 11 },
+    { key: 'half_marathon_row', label: 'HM', isTimeEvent: false, displayOrder: 12 },
+    { key: 'marathon_row', label: 'FM', isTimeEvent: false, displayOrder: 13 },
   ],
   bike: [
     { key: '100m_bike', label: '100m', isTimeEvent: false, displayOrder: 1 },
@@ -38,8 +40,10 @@ const SPORT_EVENTS: Record<SportType, EventConfig[]> = {
     { key: '2k_bike', label: '2K', isTimeEvent: false, displayOrder: 4 },
     { key: '5k_bike', label: '5K', isTimeEvent: false, displayOrder: 5 },
     { key: '10k_bike', label: '10K', isTimeEvent: false, displayOrder: 6 },
-    { key: '30min_bike', label: '30min', isTimeEvent: true, displayOrder: 7 },
-    { key: '60min_bike', label: '60min', isTimeEvent: true, displayOrder: 8 },
+    { key: '1min_bike', label: '1min', isTimeEvent: true, displayOrder: 7 },
+    { key: '4min_bike', label: '4min', isTimeEvent: true, displayOrder: 8 },
+    { key: '30min_bike', label: '30min', isTimeEvent: true, displayOrder: 9 },
+    { key: '60min_bike', label: '60min', isTimeEvent: true, displayOrder: 10 },
   ],
   skierg: [
     { key: '100m_ski', label: '100m', isTimeEvent: false, displayOrder: 1 },
@@ -48,8 +52,10 @@ const SPORT_EVENTS: Record<SportType, EventConfig[]> = {
     { key: '2k_ski', label: '2K', isTimeEvent: false, displayOrder: 4 },
     { key: '5k_ski', label: '5K', isTimeEvent: false, displayOrder: 5 },
     { key: '10k_ski', label: '10K', isTimeEvent: false, displayOrder: 6 },
-    { key: '30min_ski', label: '30min', isTimeEvent: true, displayOrder: 7 },
-    { key: '60min_ski', label: '60min', isTimeEvent: true, displayOrder: 8 },
+    { key: '1min_ski', label: '1min', isTimeEvent: true, displayOrder: 7 },
+    { key: '4min_ski', label: '4min', isTimeEvent: true, displayOrder: 8 },
+    { key: '30min_ski', label: '30min', isTimeEvent: true, displayOrder: 9 },
+    { key: '60min_ski', label: '60min', isTimeEvent: true, displayOrder: 10 },
   ],
 };
 
@@ -103,7 +109,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
     setIsGenerating(true);
     
     try {
-      // Create a temporary div for rendering - ULTRA COMPACT
+      // Create a temporary div for rendering - ULTRA COMPACT with FIXED SIZING
       const tempDiv = document.createElement('div');
       tempDiv.style.position = 'absolute';
       tempDiv.style.left = '-9999px';
@@ -118,14 +124,14 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
       const events = SPORT_EVENTS[selectedSport].sort((a, b) => a.displayOrder - b.displayOrder);
       const currentSeason = getCurrentSeason();
 
-      // Create ultra-compact table HTML with alternating colors
+      // Create ultra-compact table HTML with alternating colors and FIXED SIZING
       tempDiv.innerHTML = `
-        <table style="border-collapse: collapse; font-size: 9px; font-family: Arial, sans-serif; margin: 0; padding: 0;">
+        <table style="border-collapse: collapse; font-size: 8px; font-family: Arial, sans-serif; margin: 0; padding: 0;">
           <!-- Row 1: Event Headers -->
           <tr style="background-color: #e6f3ff;">
-            <td style="padding: 2px 4px; font-weight: bold; text-align: left; border: 1px solid #000; width: 40px;">PB</td>
+            <td style="padding: 1px 2px; font-weight: bold; text-align: center; vertical-align: middle; border: 1px solid #000; width: 50px; min-width: 50px;">PB</td>
             ${events.map((event, index) => `
-              <td style="padding: 2px 4px; font-weight: bold; text-align: center; border: 1px solid #000; width: 50px; background-color: ${index % 2 === 0 ? '#e6f3ff' : '#f0f8ff'};">
+              <td style="padding: 1px 2px; font-weight: bold; text-align: center; vertical-align: middle; border: 1px solid #000; width: 40px; min-width: 40px; background-color: ${index % 2 === 0 ? '#e6f3ff' : '#f0f8ff'};">
                 ${event.label}
               </td>
             `).join('')}
@@ -133,12 +139,12 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
           
           <!-- Row 2: Record Values -->
           <tr style="background-color: #ffffff;">
-            <td style="padding: 2px 4px; font-weight: bold; text-align: left; border: 1px solid #000;">Record</td>
+            <td style="padding: 1px 2px; font-weight: bold; text-align: center; vertical-align: middle; border: 1px solid #000;">Record</td>
             ${events.map((event, index) => {
               const stat = getStatForEvent(event.key);
               const value = stat ? formatValue(stat, event) : '-';
               return `
-                <td style="padding: 2px 4px; font-weight: bold; text-align: center; border: 1px solid #000; background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f8f8'};">
+                <td style="padding: 1px 2px; font-weight: bold; text-align: center; vertical-align: middle; border: 1px solid #000; background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f8f8'};">
                   ${value}
                 </td>
               `;
@@ -147,12 +153,12 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
           
           <!-- Row 3: Dates -->
           <tr style="background-color: #ffffff;">
-            <td style="padding: 2px 4px; font-weight: bold; text-align: left; border: 1px solid #000;">Date</td>
+            <td style="padding: 1px 2px; font-weight: bold; text-align: center; vertical-align: middle; border: 1px solid #000;">Date</td>
             ${events.map((event, index) => {
               const stat = getStatForEvent(event.key);
               const date = stat?.all_time_record ? formatDate(stat.all_time_record.achieved_at) : '-';
               return `
-                <td style="padding: 2px 4px; text-align: center; border: 1px solid #000; background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f8f8'};">
+                <td style="padding: 1px 2px; text-align: center; vertical-align: middle; border: 1px solid #000; background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f8f8'};">
                   ${date}
                 </td>
               `;
@@ -161,12 +167,12 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
           
           <!-- Row 4: Season Records -->
           <tr style="background-color: #e6f3ff;">
-            <td style="padding: 2px 4px; font-weight: bold; text-align: left; border: 1px solid #000;">${currentSeason} SB</td>
+            <td style="padding: 1px 2px; font-weight: bold; text-align: center; vertical-align: middle; border: 1px solid #000;">${currentSeason}<br>SB</td>
             ${events.map((event, index) => {
               const stat = getStatForEvent(event.key);
               const value = stat ? formatValue(stat, event, true) : '-';
               return `
-                <td style="padding: 2px 4px; text-align: center; border: 1px solid #000; background-color: ${index % 2 === 0 ? '#e6f3ff' : '#f0f8ff'};">
+                <td style="padding: 1px 2px; text-align: center; vertical-align: middle; border: 1px solid #000; background-color: ${index % 2 === 0 ? '#e6f3ff' : '#f0f8ff'};">
                   ${value}
                 </td>
               `;
@@ -182,7 +188,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
       
       const canvas = await html2canvas(tempDiv, {
         backgroundColor: '#ffffff',
-        scale: 3, // Higher resolution for crisp text
+        scale: 4, // Even higher resolution for crisp text
         useCORS: true,
         allowTaint: true,
         logging: false,
@@ -288,7 +294,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
             <table className="w-full border-collapse">
               {/* Row 1: Event Headers */}
               <tr className="bg-blue-50">
-                <td className="py-1 px-2 font-bold text-left border border-slate-400 w-12">PB</td>
+                <td className="py-1 px-2 font-bold text-center border border-slate-400 w-16">PB</td>
                 {events.map((event, index) => (
                   <td key={event.key} className={`py-1 px-2 font-bold text-center border border-slate-400 ${index % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100'}`}>
                     {event.label}
@@ -298,7 +304,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
 
               {/* Row 2: Record Values */}
               <tr>
-                <td className="py-1 px-2 font-bold text-left border border-slate-400">Record</td>
+                <td className="py-1 px-2 font-bold text-center border border-slate-400">Record</td>
                 {events.map((event, index) => {
                   const stat = getStatForEvent(event.key);
                   return (
@@ -311,7 +317,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
 
               {/* Row 3: Dates */}
               <tr>
-                <td className="py-1 px-2 font-bold text-left border border-slate-400">Date</td>
+                <td className="py-1 px-2 font-bold text-center border border-slate-400">Date</td>
                 {events.map((event, index) => {
                   const stat = getStatForEvent(event.key);
                   return (
@@ -324,7 +330,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
 
               {/* Row 4: Season Records */}
               <tr className="bg-blue-50">
-                <td className="py-1 px-2 font-bold text-left border border-slate-400">{currentSeason} SB</td>
+                <td className="py-1 px-2 font-bold text-center border border-slate-400">{currentSeason} SB</td>
                 {events.map((event, index) => {
                   const stat = getStatForEvent(event.key);
                   return (
