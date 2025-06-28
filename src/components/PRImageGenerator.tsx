@@ -258,115 +258,74 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-      <div className="p-6 border-b border-slate-200">
-        <div className="flex items-center justify-between">
+      <div className="p-4 sm:p-6 border-b border-slate-200">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg">
               <ImageIcon className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-slate-900">Generate PB Image</h2>
+              <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Generate PB Image</h2>
               <p className="text-sm text-slate-600">Create a shareable image of your personal bests</p>
             </div>
           </div>
           
-          <div className="flex items-center space-x-3">
-            {generatedImageUrl && (
-              <>
+          {/* Mobile-optimized button layout */}
+          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
+            {!generatedImageUrl ? (
+              // Show only Generate button when no image exists
+              <button
+                onClick={generateImage}
+                disabled={isGenerating}
+                className="flex items-center justify-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isGenerating ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <ImageIcon className="w-4 h-4" />
+                )}
+                <span className="text-sm">{isGenerating ? 'Generating...' : 'Generate Image'}</span>
+              </button>
+            ) : (
+              // Show action buttons when image exists
+              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
                 <button
                   onClick={copyToClipboard}
-                  className="flex items-center space-x-2 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors duration-200"
+                  className="flex items-center justify-center space-x-2 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors duration-200"
                 >
                   <Share2 className="w-4 h-4" />
                   <span className="text-sm">Copy</span>
                 </button>
                 <button
                   onClick={downloadImage}
-                  className="flex items-center space-x-2 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200"
+                  className="flex items-center justify-center space-x-2 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200"
                 >
                   <Download className="w-4 h-4" />
                   <span className="text-sm">Download</span>
                 </button>
-              </>
+                {/* Regenerate button - smaller and less prominent */}
+                <button
+                  onClick={generateImage}
+                  disabled={isGenerating}
+                  className="flex items-center justify-center space-x-2 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isGenerating ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <ImageIcon className="w-3 h-3" />
+                  )}
+                  <span className="text-xs">Regenerate</span>
+                </button>
+              </div>
             )}
-            
-            <button
-              onClick={generateImage}
-              disabled={isGenerating}
-              className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isGenerating ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <ImageIcon className="w-4 h-4" />
-              )}
-              <span className="text-sm">{isGenerating ? 'Generating...' : 'Generate Image'}</span>
-            </button>
           </div>
         </div>
       </div>
 
-      <div className="p-6">
-        {/* Preview Table */}
-        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6">
-          <h3 className="text-sm font-medium text-slate-700 mb-3">Preview</h3>
-          <div className="bg-white p-2 rounded border text-xs overflow-x-auto">
-            <table className="w-full border-collapse">
-              {/* Row 1: Event Headers */}
-              <tr className="bg-blue-50">
-                <td className="py-1 px-2 font-bold text-center border border-slate-400 w-16">PB</td>
-                {events.map((event, index) => (
-                  <td key={event.key} className={`py-1 px-2 font-bold text-center border border-slate-400 ${index % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100'}`}>
-                    {event.label}
-                  </td>
-                ))}
-              </tr>
-
-              {/* Row 2: Record Values */}
-              <tr>
-                <td className="py-1 px-2 font-bold text-center border border-slate-400">Record</td>
-                {events.map((event, index) => {
-                  const stat = getStatForEvent(event.key);
-                  return (
-                    <td key={event.key} className={`py-1 px-2 font-bold text-center border border-slate-400 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
-                      {stat ? formatValue(stat, event) : '-'}
-                    </td>
-                  );
-                })}
-              </tr>
-
-              {/* Row 3: Dates */}
-              <tr>
-                <td className="py-1 px-2 font-bold text-center border border-slate-400">Date</td>
-                {events.map((event, index) => {
-                  const stat = getStatForEvent(event.key);
-                  return (
-                    <td key={event.key} className={`py-1 px-2 text-center border border-slate-400 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
-                      {stat?.all_time_record ? formatDate(stat.all_time_record.achieved_at) : '-'}
-                    </td>
-                  );
-                })}
-              </tr>
-
-              {/* Row 4: Season Records - FIXED: Removed "SB" suffix */}
-              <tr className="bg-blue-50">
-                <td className="py-1 px-2 font-bold text-center border border-slate-400">{currentSeason}</td>
-                {events.map((event, index) => {
-                  const stat = getStatForEvent(event.key);
-                  return (
-                    <td key={event.key} className={`py-1 px-2 text-center border border-slate-400 ${index % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100'}`}>
-                      {stat ? formatValue(stat, event, true) : '-'}
-                    </td>
-                  );
-                })}
-              </tr>
-            </table>
-          </div>
-        </div>
-
-        {/* Generated Image Preview */}
+      <div className="p-4 sm:p-6">
+        {/* Generated Image Preview - Show first when available */}
         {generatedImageUrl && (
-          <div>
+          <div className="mb-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-3">Generated Image</h3>
             <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
               <img 
@@ -374,6 +333,65 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
                 alt="Generated PB Image" 
                 className="max-w-full h-auto rounded-lg shadow-sm"
               />
+            </div>
+          </div>
+        )}
+
+        {/* Preview Table - Only show when no image generated or on larger screens */}
+        {(!generatedImageUrl || window.innerWidth >= 640) && (
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+            <h3 className="text-sm font-medium text-slate-700 mb-3">Preview</h3>
+            <div className="bg-white p-2 rounded border text-xs overflow-x-auto">
+              <table className="w-full border-collapse">
+                {/* Row 1: Event Headers */}
+                <tr className="bg-blue-50">
+                  <td className="py-1 px-2 font-bold text-center border border-slate-400 w-16">PB</td>
+                  {events.map((event, index) => (
+                    <td key={event.key} className={`py-1 px-2 font-bold text-center border border-slate-400 ${index % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100'}`}>
+                      {event.label}
+                    </td>
+                  ))}
+                </tr>
+
+                {/* Row 2: Record Values */}
+                <tr>
+                  <td className="py-1 px-2 font-bold text-center border border-slate-400">Record</td>
+                  {events.map((event, index) => {
+                    const stat = getStatForEvent(event.key);
+                    return (
+                      <td key={event.key} className={`py-1 px-2 font-bold text-center border border-slate-400 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
+                        {stat ? formatValue(stat, event) : '-'}
+                      </td>
+                    );
+                  })}
+                </tr>
+
+                {/* Row 3: Dates */}
+                <tr>
+                  <td className="py-1 px-2 font-bold text-center border border-slate-400">Date</td>
+                  {events.map((event, index) => {
+                    const stat = getStatForEvent(event.key);
+                    return (
+                      <td key={event.key} className={`py-1 px-2 text-center border border-slate-400 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
+                        {stat?.all_time_record ? formatDate(stat.all_time_record.achieved_at) : '-'}
+                      </td>
+                    );
+                  })}
+                </tr>
+
+                {/* Row 4: Season Records - FIXED: Removed "SB" suffix */}
+                <tr className="bg-blue-50">
+                  <td className="py-1 px-2 font-bold text-center border border-slate-400">{currentSeason}</td>
+                  {events.map((event, index) => {
+                    const stat = getStatForEvent(event.key);
+                    return (
+                      <td key={event.key} className={`py-1 px-2 text-center border border-slate-400 ${index % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100'}`}>
+                        {stat ? formatValue(stat, event, true) : '-'}
+                      </td>
+                    );
+                  })}
+                </tr>
+              </table>
             </div>
           </div>
         )}
