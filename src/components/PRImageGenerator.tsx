@@ -59,17 +59,6 @@ const SPORT_EVENTS: Record<SportType, EventConfig[]> = {
   ],
 };
 
-// Font options optimized for small sizes and legibility
-const FONT_OPTIONS = [
-  { name: 'Consolas', label: 'Consolas (Monospace)', family: 'Consolas, "Courier New", monospace' },
-  { name: 'Monaco', label: 'Monaco (Monospace)', family: 'Monaco, "Lucida Console", monospace' },
-  { name: 'Verdana', label: 'Verdana (Sans-serif)', family: 'Verdana, Geneva, sans-serif' },
-  { name: 'Tahoma', label: 'Tahoma (Sans-serif)', family: 'Tahoma, Geneva, sans-serif' },
-  { name: 'Arial', label: 'Arial (Default)', family: 'Arial, sans-serif' },
-  { name: 'Trebuchet', label: 'Trebuchet MS', family: '"Trebuchet MS", Arial, sans-serif' },
-  { name: 'System', label: 'System UI', family: 'system-ui, -apple-system, sans-serif' },
-];
-
 export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
   prStats,
   selectedSport,
@@ -77,7 +66,6 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
 }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
-  const [selectedFont, setSelectedFont] = useState('Consolas'); // Default to Consolas for better legibility
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Get current season identifier
@@ -142,15 +130,9 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
       canvas.height = totalHeight;
       const ctx = canvas.getContext('2d')!;
 
-      // REMOVED: DPR scaling that was causing the size doubling issue
-      // The canvas now stays at exactly the dimensions we specify
-
-      // Get selected font family
-      const fontOption = FONT_OPTIONS.find(f => f.name === selectedFont) || FONT_OPTIONS[0];
-      
-      // Enhanced font settings for better legibility
+      // Use Verdana font only - optimized for small sizes and screen readability
       const fontSize = 7;
-      const fontFamily = fontOption.family;
+      const fontFamily = 'Verdana, Geneva, sans-serif';
       ctx.font = `${fontSize}px ${fontFamily}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -245,7 +227,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
       const imageUrl = canvas.toDataURL('image/png');
       setGeneratedImageUrl(imageUrl);
       
-      console.log(`Final image generated with dimensions: ${canvas.width}x${canvas.height} using font: ${fontFamily}`);
+      console.log(`Final image generated with dimensions: ${canvas.width}x${canvas.height} using Verdana font`);
     } catch (error) {
       console.error('Error generating image:', error);
     } finally {
@@ -349,27 +331,6 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
       </div>
 
       <div className="p-4 sm:p-6">
-        {/* Font Selection */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-slate-700 mb-2">
-            Font Style (for better legibility)
-          </label>
-          <select
-            value={selectedFont}
-            onChange={(e) => setSelectedFont(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            {FONT_OPTIONS.map((font) => (
-              <option key={font.name} value={font.name}>
-                {font.label}
-              </option>
-            ))}
-          </select>
-          <p className="text-xs text-slate-500 mt-1">
-            Monospace fonts (Consolas, Monaco) often provide better legibility at small sizes
-          </p>
-        </div>
-
         {/* Generated Image Preview - Show first when available */}
         {generatedImageUrl && (
           <div className="mb-6">
