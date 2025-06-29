@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { useAuth } from '../hooks/useAuth';
+import { usePersonalRecords } from '../hooks/usePersonalRecords';
 import { FirebaseService } from '../services/firebaseService';
 import { CloudFunctionsService } from '../services/cloudFunctions';
 import { DataCacheService } from '../services/dataCacheService';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { PRImageGenerator } from '../components/PRImageGenerator';
 import { UserProfile, SportType, SPORT_MAPPING } from '../types/personalRecords';
 import { 
   User, 
@@ -19,7 +21,8 @@ import {
   CheckCircle,
   Settings,
   Shield,
-  LogOut
+  LogOut,
+  Image as ImageIcon
 } from 'lucide-react';
 
 // Extended profile interface that includes sync timestamp
@@ -37,6 +40,8 @@ export const ProfilePage: React.FC = () => {
     signOut
   } = useAuth();
   
+  const { prStats, loading: prLoading, getPREvents } = usePersonalRecords();
+  
   const [profile, setProfile] = useState<ExtendedUserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -49,12 +54,17 @@ export const ProfilePage: React.FC = () => {
   const [prReprocessing, setPrReprocessing] = useState(false);
   const [prReprocessComplete, setPrReprocessComplete] = useState(false);
 
+  // State for PR image generation
+  const [selectedSport, setSelectedSport] = useState<SportType>('rower');
+  const [allPREvents, setAllPREvents] = useState<any[]>([]);
+
   const firebaseService = FirebaseService.getInstance();
   const cloudFunctions = CloudFunctionsService.getInstance();
   const cacheService = DataCacheService.getInstance();
 
   useEffect(() => {
     loadProfile();
+    loadPREvents();
   }, [user]);
 
   // Clear PR reprocess completion status after 3 seconds
@@ -98,6 +108,11 @@ export const ProfilePage: React.FC = () => {
       
       setProfile(extendedProfile);
       
+      // Set default sport from profile
+      if (extendedProfile?.default_sport) {
+        setSelectedSport(extendedProfile.default_sport);
+      }
+      
       // Reason: Cache the extended profile (including sync timestamp) for future use
       await cacheService.setCachedData(user.uid, 'userProfile', extendedProfile);
       
@@ -105,6 +120,17 @@ export const ProfilePage: React.FC = () => {
       console.error('Error loading profile:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPREvents = async () => {
+    if (!user?.uid) return;
+    
+    try {
+      const events = await getPREvents();
+      setAllPREvents(events);
+    } catch (error) {
+      console.error('Error loading PR events:', error);
     }
   };
 
@@ -157,6 +183,9 @@ export const ProfilePage: React.FC = () => {
       const updatedProfile = profile ? { ...profile, default_sport: sport } : { default_sport: sport } as ExtendedUserProfile;
       setProfile(updatedProfile);
       
+      // Update selected sport for image generator
+      setSelectedSport(sport);
+      
       // Reason: Update cache with new profile data
       await cacheService.setCachedData(user.uid, 'userProfile', updatedProfile);
       
@@ -207,6 +236,7 @@ export const ProfilePage: React.FC = () => {
       
       // Reload profile to get updated sync timestamp
       await loadProfile();
+      await loadPREvents();
     } catch (error) {
       console.error('Error syncing data:', error);
     }
@@ -226,6 +256,9 @@ export const ProfilePage: React.FC = () => {
       // Reason: Invalidate PR-related cache after recalculation
       await cacheService.invalidateCache(user.uid, 'prStats');
       await cacheService.invalidateCache(user.uid, 'prEvents');
+      
+      // Reload PR events for image generator
+      await loadPREvents();
       
       // Show completion status
       setPrReprocessComplete(true);
@@ -348,6 +381,12 @@ export const ProfilePage: React.FC = () => {
     }
     return 'bg-amber-500 hover:bg-amber-600';
   };
+
+  // Filter PR stats by selected sport
+  const filteredPRStats = prStats.filter(stat => {
+    const activityEvents = allPREvents.filter(event => event.activity_key === stat.activity_key);
+    return activityEvents.some(event => event.sport === selectedSport);
+  });
 
   if (loading) {
     return (
@@ -539,6 +578,15 @@ export const ProfilePage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* PR Image Generator Section */}
+      {concept2Connected && !prLoading && filteredPRStats.length > 0 && (
+        <PRImageGenerator 
+          prStats={filteredPRStats}
+          selectedSport={selectedSport}
+          userDisplayName={user?.displayName || 'Athlete'}
+        />
+      )}
 
       {/* Privacy Section */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200">

@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { Concept2ApiService } from '../services/concept2Api';
 import { CloudFunctionsService } from '../services/cloudFunctions';
 import { FirebaseService } from '../services/firebaseService';
+import { DataCacheService } from '../services/dataCacheService';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { BoltBadge } from '../components/BoltBadge';
 import { CheckCircle, AlertCircle } from 'lucide-react';
@@ -20,6 +21,7 @@ export const AuthCallbackPage: React.FC = () => {
   const concept2Api = Concept2ApiService.getInstance();
   const cloudFunctions = CloudFunctionsService.getInstance();
   const firebaseService = FirebaseService.getInstance();
+  const cacheService = DataCacheService.getInstance();
 
   useEffect(() => {
     // Wait for authentication state to be fully loaded
@@ -80,20 +82,37 @@ export const AuthCallbackPage: React.FC = () => {
         const freshIdToken = await user!.getIdToken(true);
         console.log(`Firebase ID token refreshed successfully, length: ${freshIdToken.length}`);
         
-        // Add a small delay to ensure the token is fully propagated
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Add a longer delay to ensure the token is fully propagated
+        await new Promise(resolve => setTimeout(resolve, 2000));
         console.log('Token propagation delay completed');
       } catch (tokenError) {
-        console.log(`Critical error refreshing ID token: ${tokenError instanceof Error ? tokenError.message : 'Unknown error'}`);
+        console.error(`Critical error refreshing ID token: ${tokenError instanceof Error ? tokenError.message : 'Unknown error'}`);
         throw new Error('Failed to refresh authentication token for Cloud Function access');
       }
       
       setMessage('Loading your workout history...');
       
       // Trigger initial data load via Cloud Function (FAST - no PR processing)
-      const syncResponse = await cloudFunctions.initialDataLoad(user!.uid);
-      
-      console.log(`Fetched ${syncResponse.newResultsCount} new results, ${syncResponse.totalResultsCount} total results`);
+      let syncResponse;
+      try {
+        console.log('Calling initialDataLoad Cloud Function...');
+        syncResponse = await cloudFunctions.initialDataLoad(user!.uid);
+        console.log(`Initial data load successful: ${syncResponse.newResultsCount} new results, ${syncResponse.totalResultsCount} total results`);
+      } catch (syncError) {
+        console.error('Initial data load failed:', syncError);
+        
+        // Enhanced error handling for Cloud Function failures
+        if (syncError instanceof Error) {
+          if (syncError.message.includes('INTERNAL') || syncError.message.includes('functions/internal')) {
+            throw new Error('Cloud Function configuration error. Please ensure Firebase Functions are properly deployed and configured.');
+          } else if (syncError.message.includes('unauthenticated')) {
+            throw new Error('Authentication token expired. Please try signing in again.');
+          } else if (syncError.message.includes('permission-denied')) {
+            throw new Error('Permission denied. Please check your Firebase security rules.');
+          }
+        }
+        throw syncError;
+      }
       
       // NEW: Extract and store Concept2 User ID if we have results
       if (syncResponse.totalResultsCount > 0) {
@@ -111,7 +130,7 @@ export const AuthCallbackPage: React.FC = () => {
             console.log('User profile updated with Concept2 User ID');
           }
         } catch (profileError) {
-          console.log(`Warning: Could not update user profile: ${profileError instanceof Error ? profileError.message : 'Unknown error'}`);
+          console.warn(`Warning: Could not update user profile: ${profileError instanceof Error ? profileError.message : 'Unknown error'}`);
           // Don't fail the entire flow for profile update issues
         }
       }
@@ -124,11 +143,29 @@ export const AuthCallbackPage: React.FC = () => {
         console.log('New user detected - performing complete PR setup');
         setMessage('Organizing your personal bests...');
         
-        const prResponse = await cloudFunctions.processAllResultsForPRs(user!.uid);
-        console.log(`Complete PR setup: ${prResponse.totalPRsProcessed} PRs across ${prResponse.activitiesProcessed} activities`);
-        
-        setStatus('success');
-        setMessage(`Welcome to PB Dash! We've imported ${syncResponse.totalResultsCount} workouts and set up ${prResponse.totalPRsProcessed} personal bests.`);
+        try {
+          console.log('Calling processAllResultsForPRs Cloud Function...');
+          const prResponse = await cloudFunctions.processAllResultsForPRs(user!.uid);
+          console.log(`Complete PR setup: ${prResponse.totalPRsProcessed} PRs across ${prResponse.activitiesProcessed} activities`);
+          
+          // Reason: Invalidate PR cache after processing to ensure fresh data on dashboard
+          console.log('Invalidating PR cache after new user setup');
+          await cacheService.invalidateCache(user!.uid, 'prStats');
+          await cacheService.invalidateCache(user!.uid, 'prEvents');
+          
+          setStatus('success');
+          setMessage(`Welcome to PB Dash! We've imported ${syncResponse.totalResultsCount} workouts and set up ${prResponse.totalPRsProcessed} personal bests.`);
+        } catch (prError) {
+          console.error('PR processing failed for new user:', prError);
+          
+          // Enhanced error handling for PR processing
+          if (prError instanceof Error) {
+            if (prError.message.includes('INTERNAL') || prError.message.includes('functions/internal')) {
+              throw new Error('Personal records processing failed due to Cloud Function configuration. Your workouts were imported successfully, but personal records need to be processed manually.');
+            }
+          }
+          throw prError;
+        }
       } else {
         // RETURNING USER: Process new results if any
         console.log('Returning user detected - processing new results');
@@ -136,15 +173,36 @@ export const AuthCallbackPage: React.FC = () => {
         if (syncResponse.newResultsCount > 0) {
           setMessage('Organizing your personal bests...');
           
-          // For returning users with new results, we need to use processAllResultsForPRs
-          // because initialDataLoad doesn't provide newResultIds, and we need to ensure
-          // the new results are properly processed for PRs
-          console.log(`Processing ${syncResponse.newResultsCount} new results for PRs`);
-          const prResponse = await cloudFunctions.processAllResultsForPRs(user!.uid);
-          console.log(`PR processing completed: ${prResponse.totalPRsProcessed} total PRs across ${prResponse.activitiesProcessed} activities`);
-          
-          setStatus('success');
-          setMessage(`Welcome back! We've added ${syncResponse.newResultsCount} new workouts and updated your personal bests.`);
+          try {
+            // For returning users with new results, we need to use processAllResultsForPRs
+            // because initialDataLoad doesn't provide newResultIds, and we need to ensure
+            // the new results are properly processed for PRs
+            console.log(`Processing ${syncResponse.newResultsCount} new results for PRs`);
+            console.log('Calling processAllResultsForPRs Cloud Function...');
+            const prResponse = await cloudFunctions.processAllResultsForPRs(user!.uid);
+            console.log(`PR processing completed: ${prResponse.totalPRsProcessed} total PRs across ${prResponse.activitiesProcessed} activities`);
+            
+            // Reason: Invalidate PR cache after processing to ensure fresh data on dashboard
+            console.log('Invalidating PR cache after returning user PR processing');
+            await cacheService.invalidateCache(user!.uid, 'prStats');
+            await cacheService.invalidateCache(user!.uid, 'prEvents');
+            
+            setStatus('success');
+            setMessage(`Welcome back! We've added ${syncResponse.newResultsCount} new workouts and updated your personal bests.`);
+          } catch (prError) {
+            console.error('PR processing failed for returning user:', prError);
+            
+            // Enhanced error handling for PR processing
+            if (prError instanceof Error) {
+              if (prError.message.includes('INTERNAL') || prError.message.includes('functions/internal')) {
+                // For returning users, we can still show success even if PR processing fails
+                setStatus('success');
+                setMessage(`Welcome back! We've added ${syncResponse.newResultsCount} new workouts. Personal records will be updated shortly.`);
+                return;
+              }
+            }
+            throw prError;
+          }
         } else {
           // No new results
           console.log('No new results to process');
@@ -161,7 +219,22 @@ export const AuthCallbackPage: React.FC = () => {
     } catch (error) {
       console.error('Callback handling failed:', error);
       setStatus('error');
-      setMessage(error instanceof Error ? error.message : 'An unexpected error occurred');
+      
+      // Enhanced error message handling
+      let errorMessage = 'An unexpected error occurred';
+      if (error instanceof Error) {
+        if (error.message.includes('Cloud Function configuration')) {
+          errorMessage = error.message + ' Please contact support if this issue persists.';
+        } else if (error.message.includes('Authentication token')) {
+          errorMessage = error.message + ' Please try signing in again.';
+        } else if (error.message.includes('Personal records processing failed')) {
+          errorMessage = error.message + ' You can manually recalculate your personal records from your profile page.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      setMessage(errorMessage);
     }
   };
 

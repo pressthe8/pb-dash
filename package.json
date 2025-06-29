@@ -14,6 +14,7 @@
     "@nivo/core": "^0.87.0",
     "@nivo/line": "^0.87.0",
     "firebase": "^10.7.2",
+    "html2canvas": "^1.4.1",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
