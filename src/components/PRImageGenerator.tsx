@@ -78,13 +78,26 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
     return `${seasonStartYear.toString().slice(-2)}/${seasonEndYear.toString().slice(-2)}`;
   };
 
-  // Format value based on event type - FIXED: Time events now show metres instead of km
+  // DYNAMIC FILTERING: Get only events that have data
+  const getAvailableEvents = (): EventConfig[] => {
+    const allEvents = SPORT_EVENTS[selectedSport];
+    const availableEvents = allEvents.filter(event => {
+      // Check if we have a stat for this event
+      const stat = prStats.find(stat => stat.activity_key === event.key);
+      return stat && stat.all_time_record; // Only include if there's an all-time record
+    });
+    
+    // Sort by display order to maintain consistent ordering
+    return availableEvents.sort((a, b) => a.displayOrder - b.displayOrder);
+  };
+
+  // Format value based on event type
   const formatValue = (stat: PRStats, eventConfig: EventConfig, isSeasonRecord: boolean = false): string => {
     const record = isSeasonRecord ? stat.current_season_record : stat.all_time_record;
     if (!record) return '-';
 
     if (eventConfig.isTimeEvent) {
-      // Time events show distance achieved - FIXED: Show in metres, not km
+      // Time events show distance achieved - Show in metres
       return `${record.metric_value}m`;
     } else {
       // Distance events show time taken
@@ -92,7 +105,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
     }
   };
 
-  // Format date as DD/MM/YY - FIXED: Now includes day
+  // Format date as DD/MM/YY
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
     const day = date.getDate().toString().padStart(2, '0');
@@ -110,21 +123,24 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
     setIsGenerating(true);
     
     try {
-      // Get events and sort by display order
-      const events = SPORT_EVENTS[selectedSport].sort((a, b) => a.displayOrder - b.displayOrder);
+      // DYNAMIC: Get only events with data
+      const availableEvents = getAvailableEvents();
       const currentSeason = getCurrentSeason();
 
-      // FIXED: Canvas dimensions to match 650x50 reference - NO DPR SCALING
+      // DYNAMIC SIZING: Calculate dimensions based on number of available events
       const maxWidth = 650;
       const cellHeight = 12;
-      const pbCellWidth = 50; // Wider for PB column
-      const eventCellWidth = Math.floor((maxWidth - pbCellWidth) / events.length);
-      const totalWidth = pbCellWidth + (events.length * eventCellWidth);
+      const pbCellWidth = 50; // Fixed width for PB column
+      
+      // Calculate event cell width based on available events
+      const availableWidth = maxWidth - pbCellWidth;
+      const eventCellWidth = Math.floor(availableWidth / availableEvents.length);
+      const totalWidth = pbCellWidth + (availableEvents.length * eventCellWidth);
       const totalHeight = cellHeight * 4; // 4 rows
 
-      console.log(`Canvas dimensions: ${totalWidth}x${totalHeight} (target: max 650px width)`);
+      console.log(`Dynamic canvas dimensions: ${totalWidth}x${totalHeight} for ${availableEvents.length} events (target: max 650px width)`);
 
-      // Create canvas - FIXED: No DPR scaling to prevent size doubling
+      // Create canvas
       const canvas = document.createElement('canvas');
       canvas.width = totalWidth;
       canvas.height = totalHeight;
@@ -140,9 +156,6 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
       // Enable text smoothing for better quality
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
-      
-      // Use subpixel positioning for sharper text
-      ctx.textRenderingOptimization = 'optimizeQuality';
 
       // Helper function to draw cell with border and background
       const drawCell = (x: number, y: number, width: number, height: number, text: string, bgColor: string, isBold: boolean = false) => {
@@ -153,24 +166,14 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
         // Draw border with sharper lines
         ctx.strokeStyle = '#000000';
         ctx.lineWidth = 0.5;
-        ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1); // Offset by 0.5 for crisp lines
+        ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
         
-        // Draw text with enhanced settings
+        // Draw text
         ctx.fillStyle = '#000000';
         ctx.font = isBold ? `bold ${fontSize}px ${fontFamily}` : `${fontSize}px ${fontFamily}`;
         
-        // Handle multi-line text for season cell (now just the season, no "SB")
-        if (text.includes('\n')) {
-          const lines = text.split('\n');
-          const lineHeight = 3;
-          const startY = y + height/2 - (lines.length - 1) * lineHeight/2;
-          lines.forEach((line, index) => {
-            ctx.fillText(line, x + width/2, startY + index * lineHeight);
-          });
-        } else {
-          // Use Math.round for pixel-perfect positioning
-          ctx.fillText(text, Math.round(x + width/2), Math.round(y + height/2));
-        }
+        // Use Math.round for pixel-perfect positioning
+        ctx.fillText(text, Math.round(x + width/2), Math.round(y + height/2));
       };
 
       // Row 1: Headers
@@ -178,7 +181,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
       drawCell(currentX, 0, pbCellWidth, cellHeight, 'PB', '#e6f3ff', true);
       currentX += pbCellWidth;
 
-      events.forEach((event, index) => {
+      availableEvents.forEach((event, index) => {
         const bgColor = index % 2 === 0 ? '#e6f3ff' : '#f0f8ff';
         drawCell(currentX, 0, eventCellWidth, cellHeight, event.label, bgColor, true);
         currentX += eventCellWidth;
@@ -189,7 +192,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
       drawCell(currentX, cellHeight, pbCellWidth, cellHeight, 'Record', '#ffffff', true);
       currentX += pbCellWidth;
 
-      events.forEach((event, index) => {
+      availableEvents.forEach((event, index) => {
         const stat = getStatForEvent(event.key);
         const value = stat ? formatValue(stat, event) : '-';
         const bgColor = index % 2 === 0 ? '#ffffff' : '#f8f8f8';
@@ -202,7 +205,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
       drawCell(currentX, cellHeight * 2, pbCellWidth, cellHeight, 'Date', '#ffffff', true);
       currentX += pbCellWidth;
 
-      events.forEach((event, index) => {
+      availableEvents.forEach((event, index) => {
         const stat = getStatForEvent(event.key);
         const date = stat?.all_time_record ? formatDate(stat.all_time_record.achieved_at) : '-';
         const bgColor = index % 2 === 0 ? '#ffffff' : '#f8f8f8';
@@ -210,12 +213,12 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
         currentX += eventCellWidth;
       });
 
-      // Row 4: Season Records - FIXED: Removed "SB" suffix
+      // Row 4: Season Records
       currentX = 0;
       drawCell(currentX, cellHeight * 3, pbCellWidth, cellHeight, currentSeason, '#e6f3ff', true);
       currentX += pbCellWidth;
 
-      events.forEach((event, index) => {
+      availableEvents.forEach((event, index) => {
         const stat = getStatForEvent(event.key);
         const value = stat ? formatValue(stat, event, true) : '-';
         const bgColor = index % 2 === 0 ? '#e6f3ff' : '#f0f8ff';
@@ -223,11 +226,10 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
         currentX += eventCellWidth;
       });
 
-      // FIXED: Ensure the canvas toDataURL respects the exact dimensions
       const imageUrl = canvas.toDataURL('image/png');
       setGeneratedImageUrl(imageUrl);
       
-      console.log(`Final image generated with dimensions: ${canvas.width}x${canvas.height} using Verdana font`);
+      console.log(`Dynamic image generated: ${canvas.width}x${canvas.height} with ${availableEvents.length} events using Verdana font`);
     } catch (error) {
       console.error('Error generating image:', error);
     } finally {
@@ -239,7 +241,6 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
     if (!generatedImageUrl) return;
 
     const link = document.createElement('a');
-    // Updated filename format: name_pbdash_export.png
     const cleanName = userDisplayName.replace(/\s+/g, '_').toLowerCase();
     link.download = `${cleanName}_pbdash_export.png`;
     link.href = generatedImageUrl;
@@ -260,8 +261,8 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
     }
   };
 
-  // Get events and sort by display order
-  const events = SPORT_EVENTS[selectedSport].sort((a, b) => a.displayOrder - b.displayOrder);
+  // DYNAMIC: Get available events for preview
+  const availableEvents = getAvailableEvents();
   const currentSeason = getCurrentSeason();
 
   return (
@@ -274,7 +275,9 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
             </div>
             <div>
               <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Generate PB Image</h2>
-              <p className="text-sm text-slate-600">Create a shareable image of your personal bests</p>
+              <p className="text-sm text-slate-600">
+                Create a shareable image of your personal bests ({availableEvents.length} events with data)
+              </p>
             </div>
           </div>
           
@@ -284,7 +287,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
               // Show only Generate button when no image exists
               <button
                 onClick={generateImage}
-                disabled={isGenerating}
+                disabled={isGenerating || availableEvents.length === 0}
                 className="flex items-center justify-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isGenerating ? (
@@ -292,7 +295,9 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
                 ) : (
                   <ImageIcon className="w-4 h-4" />
                 )}
-                <span className="text-sm">{isGenerating ? 'Generating...' : 'Generate Image'}</span>
+                <span className="text-sm">
+                  {isGenerating ? 'Generating...' : availableEvents.length === 0 ? 'No Data Available' : 'Generate Image'}
+                </span>
               </button>
             ) : (
               // Show action buttons when image exists
@@ -331,6 +336,17 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
       </div>
 
       <div className="p-4 sm:p-6">
+        {/* Show message if no events available */}
+        {availableEvents.length === 0 && (
+          <div className="text-center py-8">
+            <ImageIcon className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-slate-900 mb-2">No Personal Bests Available</h3>
+            <p className="text-slate-600">
+              Complete some {SPORT_MAPPING[selectedSport].toLowerCase()} workouts to generate your PB image.
+            </p>
+          </div>
+        )}
+
         {/* Generated Image Preview - Show first when available */}
         {generatedImageUrl && (
           <div className="mb-6">
@@ -340,22 +356,24 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
                 src={generatedImageUrl} 
                 alt="Generated PB Image" 
                 className="max-w-full h-auto rounded-lg shadow-sm"
-                style={{ imageRendering: 'pixelated' }} // Prevent browser smoothing
+                style={{ imageRendering: 'pixelated' }}
               />
             </div>
           </div>
         )}
 
-        {/* Preview Table - Only show when no image generated or on larger screens */}
-        {(!generatedImageUrl || window.innerWidth >= 640) && (
+        {/* Preview Table - Only show when we have events and (no image generated or on larger screens) */}
+        {availableEvents.length > 0 && (!generatedImageUrl || window.innerWidth >= 640) && (
           <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-            <h3 className="text-sm font-medium text-slate-700 mb-3">Preview</h3>
+            <h3 className="text-sm font-medium text-slate-700 mb-3">
+              Preview ({availableEvents.length} events)
+            </h3>
             <div className="bg-white p-2 rounded border text-xs overflow-x-auto">
               <table className="w-full border-collapse">
                 {/* Row 1: Event Headers */}
                 <tr className="bg-blue-50">
                   <td className="py-1 px-2 font-bold text-center border border-slate-400 w-16">PB</td>
-                  {events.map((event, index) => (
+                  {availableEvents.map((event, index) => (
                     <td key={event.key} className={`py-1 px-2 font-bold text-center border border-slate-400 ${index % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100'}`}>
                       {event.label}
                     </td>
@@ -365,7 +383,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
                 {/* Row 2: Record Values */}
                 <tr>
                   <td className="py-1 px-2 font-bold text-center border border-slate-400">Record</td>
-                  {events.map((event, index) => {
+                  {availableEvents.map((event, index) => {
                     const stat = getStatForEvent(event.key);
                     return (
                       <td key={event.key} className={`py-1 px-2 font-bold text-center border border-slate-400 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
@@ -378,7 +396,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
                 {/* Row 3: Dates */}
                 <tr>
                   <td className="py-1 px-2 font-bold text-center border border-slate-400">Date</td>
-                  {events.map((event, index) => {
+                  {availableEvents.map((event, index) => {
                     const stat = getStatForEvent(event.key);
                     return (
                       <td key={event.key} className={`py-1 px-2 text-center border border-slate-400 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
@@ -388,10 +406,10 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
                   })}
                 </tr>
 
-                {/* Row 4: Season Records - FIXED: Removed "SB" suffix */}
+                {/* Row 4: Season Records */}
                 <tr className="bg-blue-50">
                   <td className="py-1 px-2 font-bold text-center border border-slate-400">{currentSeason}</td>
-                  {events.map((event, index) => {
+                  {availableEvents.map((event, index) => {
                     const stat = getStatForEvent(event.key);
                     return (
                       <td key={event.key} className={`py-1 px-2 text-center border border-slate-400 ${index % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100'}`}>
