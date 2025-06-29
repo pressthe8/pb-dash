@@ -75,24 +75,73 @@ export class CloudFunctionsService {
   }
 
   /**
+   * Enhanced error handling for Cloud Function calls
+   */
+  private handleCloudFunctionError(error: any, functionName: string): never {
+    console.error(`Cloud Function ${functionName} failed:`, {
+      error,
+      errorMessage: error?.message,
+      errorCode: error?.code,
+      errorDetails: error?.details,
+      errorStack: error?.stack
+    });
+
+    if (error?.code) {
+      switch (error.code) {
+        case 'functions/internal':
+          throw new Error(`Cloud Function ${functionName} encountered an internal error. This may be due to missing secrets, configuration issues, or runtime errors in the function.`);
+        case 'functions/unauthenticated':
+          throw new Error('REAUTH_REQUIRED');
+        case 'functions/permission-denied':
+          throw new Error('Permission denied. Please check your Firebase security rules.');
+        case 'functions/not-found':
+          throw new Error(`Cloud Function ${functionName} not found. Please ensure it is deployed correctly.`);
+        case 'functions/deadline-exceeded':
+          throw new Error(`Cloud Function ${functionName} timed out. Please try again.`);
+        case 'functions/resource-exhausted':
+          throw new Error(`Cloud Function ${functionName} is temporarily unavailable. Please try again later.`);
+        default:
+          throw new Error(`Cloud Function ${functionName} failed with code ${error.code}: ${error.message}`);
+      }
+    }
+
+    if (error instanceof Error) {
+      if (error.message.includes('unauthenticated')) {
+        throw new Error('REAUTH_REQUIRED');
+      } else if (error.message.includes('not-found')) {
+        throw new Error('No Concept2 tokens found');
+      } else if (error.message.includes('INTERNAL')) {
+        throw new Error(`Cloud Function ${functionName} internal error. This may indicate missing configuration or secrets.`);
+      }
+    }
+
+    // Re-throw the original error if it doesn't match specific conditions
+    throw error;
+  }
+
+  /**
    * Initial data load for first-time authentication (FAST - no PR processing)
-   * FIXED: Use correct function name that matches deployment
+   * Enhanced with better error handling and debugging
    */
   async initialDataLoad(userId: string): Promise<SyncResponse> {
+    const functionName = 'initialDataLoadFunction';
+    
     try {
-      console.log('Triggering initial data load via Cloud Function for user:', userId);
+      console.log(`Triggering ${functionName} for user:`, userId);
+      console.log('Firebase project ID:', import.meta.env.VITE_FIREBASE_PROJECT_ID);
+      console.log('Functions region:', functions.app.options.projectId);
       
-      // FIXED: Use the exact function name from the deployment list
-      const loadFunction = httpsCallable<{ userId: string }, SyncResponse>(functions, 'initialDataLoadFunction');
+      // Use Firebase SDK's httpsCallable which automatically handles authentication
+      const loadFunction = httpsCallable<{ userId: string }, SyncResponse>(functions, functionName);
       
+      console.log(`Calling ${functionName} with userId:`, userId);
       const result = await loadFunction({ userId });
       
-      console.log('Initial data load completed:', result.data);
+      console.log(`${functionName} completed successfully:`, result.data);
       return result.data;
     } catch (error) {
-      console.error('Initial data load failed:', error);
-      this.handleCloudFunctionError(error);
-      throw error;
+      console.error(`${functionName} failed:`, error);
+      this.handleCloudFunctionError(error, functionName);
     }
   }
 
@@ -100,23 +149,24 @@ export class CloudFunctionsService {
    * Incremental sync for subsequent app loads (FAST - no PR processing)
    */
   async incrementalSync(userId: string, forceFullSync: boolean = false): Promise<IncrementalSyncResponse> {
+    const functionName = 'incrementalSyncFunction';
+    
     try {
-      console.log('Triggering incremental sync via Cloud Function for user:', userId);
+      console.log(`Triggering ${functionName} for user:`, userId);
       
-      // FIXED: Use the exact function name from the deployment list
-      const syncFunction = httpsCallable<{ userId: string; forceFullSync?: boolean }, IncrementalSyncResponse>(functions, 'incrementalSyncFunction');
+      // Use Firebase SDK's httpsCallable which automatically handles authentication
+      const syncFunction = httpsCallable<{ userId: string; forceFullSync?: boolean }, IncrementalSyncResponse>(functions, functionName);
       
       const result = await syncFunction({
         userId,
         forceFullSync
       });
       
-      console.log('Incremental sync completed:', result.data);
+      console.log(`${functionName} completed:`, result.data);
       return result.data;
     } catch (error) {
-      console.error('Incremental sync failed:', error);
-      this.handleCloudFunctionError(error);
-      throw error;
+      console.error(`${functionName} failed:`, error);
+      this.handleCloudFunctionError(error, functionName);
     }
   }
 
@@ -125,15 +175,17 @@ export class CloudFunctionsService {
    * Note: This function doesn't exist in Cloud Functions yet, so we use processAllResultsForPRs instead
    */
   async processNewPRs(userId: string, resultIds: string[]): Promise<ProcessNewPRsResponse> {
+    const functionName = 'processAllResultsForPRs';
+    
     try {
-      console.log(`Processing new PRs by triggering complete PR processing for user:`, userId);
+      console.log(`Processing new PRs by triggering ${functionName} for user:`, userId);
       
       // Since processNewPRsFunction doesn't exist, use processAllResultsForPRs instead
-      const processFunction = httpsCallable<{ userId: string }, ProcessAllResultsForPRsResponse>(functions, 'processAllResultsForPRs');
+      const processFunction = httpsCallable<{ userId: string }, ProcessAllResultsForPRsResponse>(functions, functionName);
       
       const result = await processFunction({ userId });
       
-      console.log('Complete PR processing completed:', result.data);
+      console.log(`${functionName} completed:`, result.data);
       
       // Convert the response format to match expected ProcessNewPRsResponse
       return {
@@ -142,7 +194,7 @@ export class CloudFunctionsService {
         processedResultsCount: resultIds.length
       };
     } catch (error) {
-      console.error('PR processing failed:', error);
+      console.error(`${functionName} failed:`, error);
       // Don't throw error for PR processing failures - they're non-critical
       console.log('PR processing failed but continuing...');
       return {
@@ -157,20 +209,21 @@ export class CloudFunctionsService {
    * Process ALL results for PRs (COMPREHENSIVE - all user results)
    */
   async processAllResultsForPRs(userId: string): Promise<ProcessAllResultsForPRsResponse> {
+    const functionName = 'processAllResultsForPRs';
+    
     try {
-      console.log('Triggering complete PR processing for all results via Cloud Function for user:', userId);
+      console.log(`Triggering ${functionName} for user:`, userId);
       
-      // FIXED: Use the exact function name from the deployment list
-      const processFunction = httpsCallable<{ userId: string }, ProcessAllResultsForPRsResponse>(functions, 'processAllResultsForPRs');
+      // Use Firebase SDK's httpsCallable which automatically handles authentication
+      const processFunction = httpsCallable<{ userId: string }, ProcessAllResultsForPRsResponse>(functions, functionName);
       
       const result = await processFunction({ userId });
       
-      console.log('Complete PR processing completed:', result.data);
+      console.log(`${functionName} completed:`, result.data);
       return result.data;
     } catch (error) {
-      console.error('Complete PR processing failed:', error);
-      this.handleCloudFunctionError(error);
-      throw error;
+      console.error(`${functionName} failed:`, error);
+      this.handleCloudFunctionError(error, functionName);
     }
   }
 
@@ -178,20 +231,21 @@ export class CloudFunctionsService {
    * Process new results and recalculate PRs (SMART - finds new results and recalculates)
    */
   async processNewResultsAndRecalculate(userId: string): Promise<ProcessNewResultsAndRecalculateResponse> {
+    const functionName = 'processNewResultsAndRecalculate';
+    
     try {
-      console.log('Triggering smart PR processing and recalculation via Cloud Function for user:', userId);
+      console.log(`Triggering ${functionName} for user:`, userId);
       
-      // FIXED: Use the exact function name from the deployment list
-      const processFunction = httpsCallable<{ userId: string }, ProcessNewResultsAndRecalculateResponse>(functions, 'processNewResultsAndRecalculate');
+      // Use Firebase SDK's httpsCallable which automatically handles authentication
+      const processFunction = httpsCallable<{ userId: string }, ProcessNewResultsAndRecalculateResponse>(functions, functionName);
       
       const result = await processFunction({ userId });
       
-      console.log('Smart PR processing and recalculation completed:', result.data);
+      console.log(`${functionName} completed:`, result.data);
       return result.data;
     } catch (error) {
-      console.error('Smart PR processing and recalculation failed:', error);
-      this.handleCloudFunctionError(error);
-      throw error;
+      console.error(`${functionName} failed:`, error);
+      this.handleCloudFunctionError(error, functionName);
     }
   }
 
@@ -199,20 +253,21 @@ export class CloudFunctionsService {
    * Delete user account and all associated data
    */
   async deleteUserAccount(userId: string): Promise<DeleteUserAccountResponse> {
+    const functionName = 'deleteUserAccountFunction';
+    
     try {
-      console.log('Triggering account deletion via Cloud Function for user:', userId);
+      console.log(`Triggering ${functionName} for user:`, userId);
       
-      // FIXED: Use the exact function name from the deployment list
-      const deleteFunction = httpsCallable<{ userId: string }, DeleteUserAccountResponse>(functions, 'deleteUserAccountFunction');
+      // Use Firebase SDK's httpsCallable which automatically handles authentication
+      const deleteFunction = httpsCallable<{ userId: string }, DeleteUserAccountResponse>(functions, functionName);
       
       const result = await deleteFunction({ userId });
       
-      console.log('Account deletion completed:', result.data);
+      console.log(`${functionName} completed:`, result.data);
       return result.data;
     } catch (error) {
-      console.error('Account deletion failed:', error);
-      this.handleCloudFunctionError(error);
-      throw error;
+      console.error(`${functionName} failed:`, error);
+      this.handleCloudFunctionError(error, functionName);
     }
   }
 
@@ -225,11 +280,13 @@ export class CloudFunctionsService {
     syncType: 'initial' | 'incremental' = 'incremental',
     forceFullSync: boolean = false
   ): Promise<SyncResponse> {
+    const functionName = 'syncConcept2Data';
+    
     try {
-      console.log(`Triggering ${syncType} sync via Cloud Function for user:`, userId);
+      console.log(`Triggering ${functionName} (${syncType}) for user:`, userId);
       
       // Use Firebase SDK's httpsCallable which automatically handles authentication
-      const syncFunction = httpsCallable<SyncRequest, SyncResponse>(functions, 'syncConcept2Data');
+      const syncFunction = httpsCallable<SyncRequest, SyncResponse>(functions, functionName);
       
       const result = await syncFunction({
         userId,
@@ -237,27 +294,11 @@ export class CloudFunctionsService {
         forceFullSync
       });
       
-      console.log('Cloud Function sync completed:', result.data);
+      console.log(`${functionName} completed:`, result.data);
       return result.data;
     } catch (error) {
-      console.error('Cloud Function sync failed:', error);
-      this.handleCloudFunctionError(error);
-      throw error;
+      console.error(`${functionName} failed:`, error);
+      this.handleCloudFunctionError(error, functionName);
     }
-  }
-
-  /**
-   * Handle common Cloud Function errors
-   */
-  private handleCloudFunctionError(error: any): void {
-    if (error instanceof Error) {
-      if (error.message.includes('unauthenticated')) {
-        throw new Error('REAUTH_REQUIRED');
-      } else if (error.message.includes('not-found')) {
-        throw new Error('No Concept2 tokens found');
-      }
-    }
-    // Re-throw the original error if it doesn't match specific conditions
-    throw error;
   }
 }
