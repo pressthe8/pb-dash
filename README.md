@@ -89,20 +89,51 @@ A modern, responsive web application that connects to your Concept2 Logbook acco
 
    **⚠️ IMPORTANT**: Make sure your Concept2 credentials are correct and the redirect URI in your Concept2 Developer Portal matches exactly your current environment URL.
 
-4. **🚨 CRITICAL: Configure Firebase Cloud Functions**
+4. **🚨 CRITICAL: Configure Firebase Cloud Functions Secrets**
    
-   **Set Concept2 API credentials for Cloud Functions** (this fixes the "internal" sync error):
+   **The most common cause of "INTERNAL" errors is missing Concept2 API credentials for Cloud Functions.**
+   
+   **Method 1: Using Firebase Console (Recommended)**
+   
+   1. Go to [Firebase Console](https://console.firebase.google.com/)
+   2. Select your project
+   3. Navigate to **Functions** → **Configuration** tab
+   4. Click **"Add secret"**
+   5. Create these two secrets:
+      - **Secret name**: `CONCEPT2_CLIENT_ID`
+      - **Secret value**: Your Concept2 Client ID from the Developer Portal
+      - Click **"Add secret"**
+      
+      - **Secret name**: `CONCEPT2_CLIENT_SECRET`
+      - **Secret value**: Your Concept2 Client Secret from the Developer Portal
+      - Click **"Add secret"**
+   
+   **Method 2: Using Firebase CLI**
    
    ```bash
-   # Replace YOUR_CONCEPT2_CLIENT_ID and YOUR_CONCEPT2_CLIENT_SECRET with your actual credentials
-   firebase functions:config:set concept2.client_id="YOUR_CONCEPT2_CLIENT_ID"
-   firebase functions:config:set concept2.client_secret="YOUR_CONCEPT2_CLIENT_SECRET"
+   # Install Firebase CLI if you haven't already
+   npm install -g firebase-tools
    
-   # Deploy functions with the new configuration
+   # Login to Firebase
+   firebase login
+   
+   # Set your project
+   firebase use your-project-id
+   
+   # Create the secrets (replace with your actual credentials)
+   firebase functions:secrets:set CONCEPT2_CLIENT_ID
+   # Enter your Concept2 Client ID when prompted
+   
+   firebase functions:secrets:set CONCEPT2_CLIENT_SECRET
+   # Enter your Concept2 Client Secret when prompted
+   ```
+   
+   **Deploy functions with the new secrets**:
+   ```bash
    firebase deploy --only functions
    ```
    
-   **Without this step, data synchronization will fail with "internal" errors.**
+   **⚠️ CRITICAL**: Without these secrets, all data synchronization will fail with "INTERNAL" errors.
 
 5. **🚨 CRITICAL: Configure Firebase Authorized Domains**
    
@@ -279,32 +310,45 @@ After setup, you should see these indexes:
 
 ## Troubleshooting
 
-### "Internal" Error During Data Sync
+### "INTERNAL" Error During Data Sync
 
-**🚨 MOST COMMON ISSUE**: If you see "Error syncing data: internal" when clicking the "Sync New Data" button:
+**🚨 MOST COMMON ISSUE**: If you see "Error syncing data: INTERNAL" or "Cloud Function initialDataLoadFunction failed: INTERNAL":
 
-**Root Cause**: The Firebase Cloud Functions don't have the Concept2 API credentials configured.
+**Root Cause**: The Firebase Cloud Functions don't have the Concept2 API credentials configured as secrets.
 
 **Solution**:
-1. **Set the credentials using Firebase CLI**:
-   ```bash
-   firebase functions:config:set concept2.client_id="YOUR_CONCEPT2_CLIENT_ID"
-   firebase functions:config:set concept2.client_secret="YOUR_CONCEPT2_CLIENT_SECRET"
-   ```
-   
-2. **Replace the placeholders** with your actual credentials from the Concept2 Developer Portal
 
-3. **Redeploy the functions**:
-   ```bash
-   firebase deploy --only functions
-   ```
+**Method 1: Firebase Console (Recommended)**
+1. Go to [Firebase Console](https://console.firebase.google.com/)
+2. Select your project
+3. Navigate to **Functions** → **Configuration** tab
+4. Click **"Add secret"**
+5. Create these secrets:
+   - `CONCEPT2_CLIENT_ID` with your Concept2 Client ID
+   - `CONCEPT2_CLIENT_SECRET` with your Concept2 Client Secret
+6. Deploy functions: `firebase deploy --only functions`
 
-4. **Verify the configuration** (optional):
-   ```bash
-   firebase functions:config:get
-   ```
+**Method 2: Firebase CLI**
+```bash
+# Set the secrets using Firebase CLI
+firebase functions:secrets:set CONCEPT2_CLIENT_ID
+firebase functions:secrets:set CONCEPT2_CLIENT_SECRET
 
-**Important**: Without this configuration, all data synchronization operations will fail with "internal" errors.
+# Deploy the functions
+firebase deploy --only functions
+```
+
+**Verify the secrets are set**:
+```bash
+firebase functions:secrets:access CONCEPT2_CLIENT_ID
+firebase functions:secrets:access CONCEPT2_CLIENT_SECRET
+```
+
+**Important**: 
+- These are **secrets**, not environment variables
+- Firebase Functions v2 uses `defineSecret()` which requires secrets to be set in Firebase Console or CLI
+- Without these secrets, all data synchronization operations will fail with "INTERNAL" errors
+- The old `firebase functions:config:set` method does NOT work with v2 functions
 
 ### Firebase Authentication Errors
 
@@ -338,21 +382,25 @@ This error occurs when your development domain is not authorized in Firebase:
 
 If you see "Callback handling failed: internal" during the OAuth flow:
 
-1. **Missing Firestore Indexes** (MOST COMMON):
-   - This error typically means required Firestore indexes are missing
+1. **Missing Firebase Secrets** (MOST COMMON):
+   - This error typically means the Cloud Functions are missing Concept2 API secrets
+   - Follow the "Configure Firebase Cloud Functions Secrets" section above
+   - Ensure you create **secrets** (not config variables) for v2 functions
+
+2. **Missing Firestore Indexes**:
    - Follow the "Create Required Firestore Indexes" section above carefully
    - Ensure you create **Collection group** indexes for subcollections
    - Wait 5-10 minutes for indexes to build after creation
 
-2. **Check Firebase Functions Logs**:
+3. **Check Firebase Functions Logs**:
    - Go to Firebase Console → Functions → Logs
-   - Look for specific error messages about missing indexes
+   - Look for specific error messages about missing secrets or indexes
    - Use the provided links to create missing indexes automatically
 
-3. **Verify Index Types**:
-   - `user_tokens` indexes should be **Collection** scope
-   - `results`, `pr_types`, `pr_events` indexes should be **Collection group** scope
-   - This is critical for the subcollection structure to work
+4. **Verify Secret Configuration**:
+   - Go to Firebase Console → Functions → Configuration
+   - Ensure `CONCEPT2_CLIENT_ID` and `CONCEPT2_CLIENT_SECRET` secrets exist
+   - If missing, create them and redeploy functions
 
 ### OAuth Token Exchange Errors
 
@@ -375,10 +423,11 @@ If you see "Token exchange failed" with an HTML error page:
 
 If you see "Missing or insufficient permissions":
 
-1. **Create Required Indexes** (see Firebase Setup section above)
-2. **Check Firestore Rules** are properly configured for subcollections
-3. **Verify Authentication** is working (user should be signed in with Google)
-4. **Wait for Index Building** - indexes can take 5-10 minutes to become active
+1. **Create Required Secrets** (see Firebase Setup section above)
+2. **Create Required Indexes** (see Firebase Setup section above)
+3. **Check Firestore Rules** are properly configured for subcollections
+4. **Verify Authentication** is working (user should be signed in with Google)
+5. **Wait for Index Building** - indexes can take 5-10 minutes to become active
 
 ### Common Issues
 
@@ -388,7 +437,8 @@ If you see "Missing or insufficient permissions":
 - **Domain Authorization**: Always add your exact development URL to Firebase authorized domains
 - **WebContainer URLs**: Remember that WebContainer URLs change between sessions
 - **Subcollection Indexes**: Make sure to use "Collection group" scope for subcollection indexes
-- **Cloud Functions Configuration**: Ensure Concept2 API credentials are set for Functions
+- **Cloud Functions Secrets**: Ensure Concept2 API credentials are set as **secrets** (not config) for v2 functions
+- **Secret vs Config**: Firebase Functions v2 uses `defineSecret()` which requires secrets, not the old `functions:config:set` method
 
 ## Deployment
 
@@ -401,9 +451,14 @@ If you see "Missing or insufficient permissions":
 3. **Set environment variables** in Netlify dashboard
 4. **Update Firebase authorized domains** to include your production domain
 5. **Update Concept2 redirect URI** to your production domain
-6. **Deploy Firebase Functions**:
+6. **Configure Firebase Secrets for Production**:
    ```bash
-   firebase deploy --only functions
+   # Set production secrets
+   firebase functions:secrets:set CONCEPT2_CLIENT_ID --project your-prod-project-id
+   firebase functions:secrets:set CONCEPT2_CLIENT_SECRET --project your-prod-project-id
+   
+   # Deploy functions to production
+   firebase deploy --only functions --project your-prod-project-id
    ```
 7. **Deploy!**
 
@@ -424,7 +479,8 @@ Ensure all environment variables are set in your Netlify dashboard:
 **Important**: 
 - Update your Firebase authorized domains to include your production domain: `your-domain.com`
 - Update your Concept2 Developer Portal redirect URI to your production domain: `https://your-domain.com/auth/callback`
-- Ensure Firebase Functions have the Concept2 credentials configured in production
+- Ensure Firebase Functions have the Concept2 credentials configured as **secrets** in production
+- Use the correct Firebase project ID for production deployments
 
 ## Usage
 
