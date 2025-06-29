@@ -114,7 +114,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
       const events = SPORT_EVENTS[selectedSport].sort((a, b) => a.displayOrder - b.displayOrder);
       const currentSeason = getCurrentSeason();
 
-      // FIXED: Canvas dimensions to match 650x50 reference
+      // FIXED: Canvas dimensions to match 650x50 reference - NO DPR SCALING
       const maxWidth = 650;
       const cellHeight = 12;
       const pbCellWidth = 50; // Wider for PB column
@@ -124,19 +124,14 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
 
       console.log(`Canvas dimensions: ${totalWidth}x${totalHeight} (target: max 650px width)`);
 
-      // Create canvas
+      // Create canvas - FIXED: No DPR scaling to prevent size doubling
       const canvas = document.createElement('canvas');
       canvas.width = totalWidth;
       canvas.height = totalHeight;
       const ctx = canvas.getContext('2d')!;
 
-      // Set high DPI for crisp text
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = totalWidth * dpr;
-      canvas.height = totalHeight * dpr;
-      canvas.style.width = totalWidth + 'px';
-      canvas.style.height = totalHeight + 'px';
-      ctx.scale(dpr, dpr);
+      // REMOVED: DPR scaling that was causing the size doubling issue
+      // The canvas now stays at exactly the dimensions we specify
 
       // Font settings - smaller for tighter layout
       ctx.font = '7px Arial, sans-serif';
@@ -221,8 +216,11 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
         currentX += eventCellWidth;
       });
 
+      // FIXED: Ensure the canvas toDataURL respects the exact dimensions
       const imageUrl = canvas.toDataURL('image/png');
       setGeneratedImageUrl(imageUrl);
+      
+      console.log(`Final image generated with dimensions: ${canvas.width}x${canvas.height}`);
     } catch (error) {
       console.error('Error generating image:', error);
     } finally {
