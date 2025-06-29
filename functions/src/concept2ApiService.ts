@@ -2,19 +2,22 @@ import { defineSecret } from 'firebase-functions/params';
 import { OAuthTokens, Concept2ApiResponse } from './types';
 
 // Environment-based URL configuration for Cloud Functions
-// Reason: Use process.env or a more reliable method for environment detection
+// FIXED: Force development environment for bolt-c2 project
 const getEnvironment = (): string => {
-  // Check if we're in production by looking at the project ID or other indicators
   const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT;
   
-  // If project ID contains 'dev' or 'test', assume development
-  if (projectId && (projectId.includes('dev') || projectId.includes('test'))) {
+  // CRITICAL: Force development environment for bolt-c2 project
+  if (projectId === 'bolt-c2') {
     return 'dev';
   }
   
-  // For production project, default to production
-  // You can also check other environment indicators here
-  return 'prod';
+  // For pb-dash project, use production
+  if (projectId === 'pb-dash') {
+    return 'prod';
+  }
+  
+  // Default to development for safety
+  return 'dev';
 };
 
 const environment = getEnvironment();
