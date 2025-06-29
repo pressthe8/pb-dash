@@ -76,13 +76,13 @@ export class CloudFunctionsService {
 
   /**
    * Initial data load for first-time authentication (FAST - no PR processing)
-   * FIXED: Now uses httpsCallable for proper Firebase authentication flow
+   * FIXED: Use correct function name that matches deployment
    */
   async initialDataLoad(userId: string): Promise<SyncResponse> {
     try {
       console.log('Triggering initial data load via Cloud Function for user:', userId);
       
-      // Use Firebase SDK's httpsCallable which automatically handles authentication
+      // FIXED: Use the exact function name from the deployment list
       const loadFunction = httpsCallable<{ userId: string }, SyncResponse>(functions, 'initialDataLoadFunction');
       
       const result = await loadFunction({ userId });
@@ -103,7 +103,7 @@ export class CloudFunctionsService {
     try {
       console.log('Triggering incremental sync via Cloud Function for user:', userId);
       
-      // Use Firebase SDK's httpsCallable which automatically handles authentication
+      // FIXED: Use the exact function name from the deployment list
       const syncFunction = httpsCallable<{ userId: string; forceFullSync?: boolean }, IncrementalSyncResponse>(functions, 'incrementalSyncFunction');
       
       const result = await syncFunction({
@@ -160,7 +160,7 @@ export class CloudFunctionsService {
     try {
       console.log('Triggering complete PR processing for all results via Cloud Function for user:', userId);
       
-      // Use Firebase SDK's httpsCallable which automatically handles authentication
+      // FIXED: Use the exact function name from the deployment list
       const processFunction = httpsCallable<{ userId: string }, ProcessAllResultsForPRsResponse>(functions, 'processAllResultsForPRs');
       
       const result = await processFunction({ userId });
@@ -181,7 +181,7 @@ export class CloudFunctionsService {
     try {
       console.log('Triggering smart PR processing and recalculation via Cloud Function for user:', userId);
       
-      // Use Firebase SDK's httpsCallable which automatically handles authentication
+      // FIXED: Use the exact function name from the deployment list
       const processFunction = httpsCallable<{ userId: string }, ProcessNewResultsAndRecalculateResponse>(functions, 'processNewResultsAndRecalculate');
       
       const result = await processFunction({ userId });
@@ -202,7 +202,7 @@ export class CloudFunctionsService {
     try {
       console.log('Triggering account deletion via Cloud Function for user:', userId);
       
-      // Use Firebase SDK's httpsCallable which automatically handles authentication
+      // FIXED: Use the exact function name from the deployment list
       const deleteFunction = httpsCallable<{ userId: string }, DeleteUserAccountResponse>(functions, 'deleteUserAccountFunction');
       
       const result = await deleteFunction({ userId });
