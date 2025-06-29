@@ -114,12 +114,15 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
       const events = SPORT_EVENTS[selectedSport].sort((a, b) => a.displayOrder - b.displayOrder);
       const currentSeason = getCurrentSeason();
 
-      // Canvas dimensions - targeting 650x50 like your reference
-      const cellWidth = 45;
+      // FIXED: Canvas dimensions to match 650x50 reference
+      const maxWidth = 650;
       const cellHeight = 12;
       const pbCellWidth = 50; // Wider for PB column
-      const totalWidth = pbCellWidth + (events.length * cellWidth);
+      const eventCellWidth = Math.floor((maxWidth - pbCellWidth) / events.length);
+      const totalWidth = pbCellWidth + (events.length * eventCellWidth);
       const totalHeight = cellHeight * 4; // 4 rows
+
+      console.log(`Canvas dimensions: ${totalWidth}x${totalHeight} (target: max 650px width)`);
 
       // Create canvas
       const canvas = document.createElement('canvas');
@@ -135,8 +138,8 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
       canvas.style.height = totalHeight + 'px';
       ctx.scale(dpr, dpr);
 
-      // Font settings
-      ctx.font = '8px Arial, sans-serif';
+      // Font settings - smaller for tighter layout
+      ctx.font = '7px Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
@@ -148,17 +151,17 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
         
         // Draw border
         ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 0.5; // Thinner borders for tighter layout
         ctx.strokeRect(x, y, width, height);
         
         // Draw text
         ctx.fillStyle = '#000000';
-        ctx.font = isBold ? 'bold 8px Arial, sans-serif' : '8px Arial, sans-serif';
+        ctx.font = isBold ? 'bold 7px Arial, sans-serif' : '7px Arial, sans-serif';
         
         // Handle multi-line text for season cell (now just the season, no "SB")
         if (text.includes('\n')) {
           const lines = text.split('\n');
-          const lineHeight = 4;
+          const lineHeight = 3;
           const startY = y + height/2 - (lines.length - 1) * lineHeight/2;
           lines.forEach((line, index) => {
             ctx.fillText(line, x + width/2, startY + index * lineHeight);
@@ -175,8 +178,8 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
 
       events.forEach((event, index) => {
         const bgColor = index % 2 === 0 ? '#e6f3ff' : '#f0f8ff';
-        drawCell(currentX, 0, cellWidth, cellHeight, event.label, bgColor, true);
-        currentX += cellWidth;
+        drawCell(currentX, 0, eventCellWidth, cellHeight, event.label, bgColor, true);
+        currentX += eventCellWidth;
       });
 
       // Row 2: Records
@@ -188,8 +191,8 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
         const stat = getStatForEvent(event.key);
         const value = stat ? formatValue(stat, event) : '-';
         const bgColor = index % 2 === 0 ? '#ffffff' : '#f8f8f8';
-        drawCell(currentX, cellHeight, cellWidth, cellHeight, value, bgColor, true);
-        currentX += cellWidth;
+        drawCell(currentX, cellHeight, eventCellWidth, cellHeight, value, bgColor, true);
+        currentX += eventCellWidth;
       });
 
       // Row 3: Dates
@@ -201,8 +204,8 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
         const stat = getStatForEvent(event.key);
         const date = stat?.all_time_record ? formatDate(stat.all_time_record.achieved_at) : '-';
         const bgColor = index % 2 === 0 ? '#ffffff' : '#f8f8f8';
-        drawCell(currentX, cellHeight * 2, cellWidth, cellHeight, date, bgColor, false);
-        currentX += cellWidth;
+        drawCell(currentX, cellHeight * 2, eventCellWidth, cellHeight, date, bgColor, false);
+        currentX += eventCellWidth;
       });
 
       // Row 4: Season Records - FIXED: Removed "SB" suffix
@@ -214,8 +217,8 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
         const stat = getStatForEvent(event.key);
         const value = stat ? formatValue(stat, event, true) : '-';
         const bgColor = index % 2 === 0 ? '#e6f3ff' : '#f0f8ff';
-        drawCell(currentX, cellHeight * 3, cellWidth, cellHeight, value, bgColor, false);
-        currentX += cellWidth;
+        drawCell(currentX, cellHeight * 3, eventCellWidth, cellHeight, value, bgColor, false);
+        currentX += eventCellWidth;
       });
 
       const imageUrl = canvas.toDataURL('image/png');
