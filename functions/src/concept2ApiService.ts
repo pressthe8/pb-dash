@@ -4,40 +4,17 @@ import { OAuthTokens, Concept2ApiResponse } from './types';
 // Environment-based URL configuration for Cloud Functions
 // Reason: Use process.env or a more reliable method for environment detection
 const getEnvironment = (): string => {
-  // Check multiple environment indicators
+  // Check if we're in production by looking at the project ID or other indicators
   const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT;
-  const functionName = process.env.FUNCTION_NAME;
-  const k_service = process.env.K_SERVICE;
-  
-  console.log('Environment detection:', {
-    projectId,
-    functionName,
-    k_service,
-    nodeEnv: process.env.NODE_ENV
-  });
-  
-  // Check for explicit dev environment variables
-  if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev') {
-    console.log('Environment detected as DEV via NODE_ENV');
-    return 'dev';
-  }
-  
-  // Check if we're running locally (Firebase emulator)
-  if (process.env.FUNCTIONS_EMULATOR === 'true' || process.env.FIREBASE_CONFIG === undefined) {
-    console.log('Environment detected as DEV via emulator');
-    return 'dev';
-  }
   
   // If project ID contains 'dev' or 'test', assume development
   if (projectId && (projectId.includes('dev') || projectId.includes('test'))) {
-    console.log('Environment detected as DEV via project ID');
     return 'dev';
   }
   
-  // For now, default to DEV to match user expectation
-  // TODO: Update this logic based on your actual production project setup
-  console.log('Environment defaulting to DEV (override if needed)');
-  return 'dev';
+  // For production project, default to production
+  // You can also check other environment indicators here
+  return 'prod';
 };
 
 const environment = getEnvironment();
@@ -55,25 +32,17 @@ export class Concept2ApiService {
 
   constructor() {
     // Enhanced error handling for missing configuration
-    try {
-      this.clientId = concept2ClientId.value();
-      this.clientSecret = concept2ClientSecret.value();
-    } catch (error) {
-      console.error('Failed to retrieve Concept2 API secrets:', error);
-      throw new Error('Concept2 API credentials not configured. Please set CONCEPT2_CLIENT_ID and CONCEPT2_CLIENT_SECRET secrets using: firebase functions:secrets:set CONCEPT2_CLIENT_ID="your_client_id"');
-    }
+    this.clientId = concept2ClientId.value();
+    this.clientSecret = concept2ClientSecret.value();
     
     if (!this.clientId || !this.clientSecret) {
       throw new Error('Concept2 API credentials not configured. Please set CONCEPT2_CLIENT_ID and CONCEPT2_CLIENT_SECRET secrets.');
     }
     
-    console.log('Concept2ApiService initialized:', {
-      clientIdPresent: !!this.clientId,
-      environment,
-      projectId: process.env.GCLOUD_PROJECT || 'unknown',
-      baseUrl: CONCEPT2_BASE_URL,
-      oauthUrl: OAUTH_BASE_URL
-    });
+    console.log('Concept2ApiService initialized with client ID:', this.clientId ? 'present' : 'missing');
+    console.log('Environment:', environment);
+    console.log('Project ID:', process.env.GCLOUD_PROJECT || 'unknown');
+    console.log('Base URL:', CONCEPT2_BASE_URL);
   }
 
   /**
@@ -95,7 +64,7 @@ export class Concept2ApiService {
    * Refresh access token using refresh token
    */
   async refreshAccessToken(refreshToken: string): Promise<OAuthTokens> {
-    console.log('Refreshing access token using URL:', OAUTH_BASE_URL);
+    console.log('Refreshing access token');
 
     const requestParams = new URLSearchParams();
     requestParams.append('grant_type', 'refresh_token');
@@ -121,8 +90,7 @@ export class Concept2ApiService {
       console.error('Token refresh failed:', {
         status: response.status,
         statusText: response.statusText,
-        errorData: errorData.substring(0, 500),
-        url: `${OAUTH_BASE_URL}/access_token`
+        errorData: errorData.substring(0, 500)
       });
       
       if (response.status === 400) {
@@ -173,8 +141,6 @@ export class Concept2ApiService {
         throw error;
       }
     }
-    
-    console.log('Making API request to:', url);
     
     // Make the API request
     const response = await fetch(url, {
