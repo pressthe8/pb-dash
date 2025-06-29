@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { Concept2ApiService } from '../services/concept2Api';
 import { CloudFunctionsService } from '../services/cloudFunctions';
 import { FirebaseService } from '../services/firebaseService';
+import { DataCacheService } from '../services/dataCacheService';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { BoltBadge } from '../components/BoltBadge';
 import { CheckCircle, AlertCircle } from 'lucide-react';
@@ -20,6 +21,7 @@ export const AuthCallbackPage: React.FC = () => {
   const concept2Api = Concept2ApiService.getInstance();
   const cloudFunctions = CloudFunctionsService.getInstance();
   const firebaseService = FirebaseService.getInstance();
+  const cacheService = DataCacheService.getInstance();
 
   useEffect(() => {
     // Wait for authentication state to be fully loaded
@@ -127,6 +129,11 @@ export const AuthCallbackPage: React.FC = () => {
         const prResponse = await cloudFunctions.processAllResultsForPRs(user!.uid);
         console.log(`Complete PR setup: ${prResponse.totalPRsProcessed} PRs across ${prResponse.activitiesProcessed} activities`);
         
+        // Reason: Invalidate PR cache after processing to ensure fresh data on dashboard
+        console.log('Invalidating PR cache after new user setup');
+        await cacheService.invalidateCache(user!.uid, 'prStats');
+        await cacheService.invalidateCache(user!.uid, 'prEvents');
+        
         setStatus('success');
         setMessage(`Welcome to PB Dash! We've imported ${syncResponse.totalResultsCount} workouts and set up ${prResponse.totalPRsProcessed} personal bests.`);
       } else {
@@ -142,6 +149,11 @@ export const AuthCallbackPage: React.FC = () => {
           console.log(`Processing ${syncResponse.newResultsCount} new results for PRs`);
           const prResponse = await cloudFunctions.processAllResultsForPRs(user!.uid);
           console.log(`PR processing completed: ${prResponse.totalPRsProcessed} total PRs across ${prResponse.activitiesProcessed} activities`);
+          
+          // Reason: Invalidate PR cache after processing to ensure fresh data on dashboard
+          console.log('Invalidating PR cache after returning user PR processing');
+          await cacheService.invalidateCache(user!.uid, 'prStats');
+          await cacheService.invalidateCache(user!.uid, 'prEvents');
           
           setStatus('success');
           setMessage(`Welcome back! We've added ${syncResponse.newResultsCount} new workouts and updated your personal bests.`);
