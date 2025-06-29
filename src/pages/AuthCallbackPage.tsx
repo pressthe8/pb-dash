@@ -75,47 +75,88 @@ export const AuthCallbackPage: React.FC = () => {
       await storeConcept2Tokens(tokens);
       console.log('Token storage successful');
       
-      // CRITICAL FIX: Force refresh Firebase ID token and wait for it to complete
-      // This ensures the token is fresh and valid for Cloud Function calls
+      // ENHANCED: Multiple token refresh attempts with exponential backoff
+      // Reason: WebContainer environments may need more time for token propagation
       try {
-        console.log('Forcing Firebase ID token refresh...');
-        const freshIdToken = await user!.getIdToken(true);
-        console.log(`Firebase ID token refreshed successfully, length: ${freshIdToken.length}`);
+        console.log('Forcing Firebase ID token refresh with retry logic...');
+        let tokenRefreshSuccess = false;
+        let attempt = 1;
+        const maxAttempts = 3;
         
-        // Add a longer delay to ensure the token is fully propagated
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        console.log('Token propagation delay completed');
+        while (!tokenRefreshSuccess && attempt <= maxAttempts) {
+          try {
+            console.log(`Token refresh attempt ${attempt}/${maxAttempts}`);
+            const freshIdToken = await user!.getIdToken(true);
+            console.log(`Firebase ID token refreshed successfully on attempt ${attempt}, length: ${freshIdToken.length}`);
+            
+            // Exponential backoff delay: 2s, 4s, 6s
+            const delay = attempt * 2000;
+            console.log(`Waiting ${delay}ms for token propagation...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            
+            tokenRefreshSuccess = true;
+            console.log('Token propagation delay completed');
+          } catch (attemptError) {
+            console.warn(`Token refresh attempt ${attempt} failed:`, attemptError);
+            if (attempt === maxAttempts) {
+              throw attemptError;
+            }
+            // Wait before retry
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            attempt++;
+          }
+        }
       } catch (tokenError) {
-        console.error(`Critical error refreshing ID token: ${tokenError instanceof Error ? tokenError.message : 'Unknown error'}`);
-        throw new Error('Failed to refresh authentication token for Cloud Function access');
+        console.error(`Critical error refreshing ID token after ${3} attempts: ${tokenError instanceof Error ? tokenError.message : 'Unknown error'}`);
+        throw new Error('Failed to refresh authentication token for Cloud Function access. Please try again.');
       }
       
       setMessage('Loading your workout history...');
       
-      // Trigger initial data load via Cloud Function (FAST - no PR processing)
+      // ENHANCED: Cloud Function call with retry logic
+      // Reason: First call after token refresh may still fail due to propagation delays
       let syncResponse;
-      try {
-        console.log('Calling initialDataLoad Cloud Function...');
-        syncResponse = await cloudFunctions.initialDataLoad(user!.uid);
-        console.log(`Initial data load successful: ${syncResponse.newResultsCount} new results, ${syncResponse.totalResultsCount} total results`);
-      } catch (syncError) {
-        console.error('Initial data load failed:', syncError);
-        
-        // Enhanced error handling for Cloud Function failures
-        if (syncError instanceof Error) {
-          if (syncError.message.includes('INTERNAL') || syncError.message.includes('functions/internal')) {
-            throw new Error('Cloud Function configuration error. Please ensure Firebase Functions are properly deployed and configured.');
-          } else if (syncError.message.includes('unauthenticated')) {
-            throw new Error('Authentication token expired. Please try signing in again.');
-          } else if (syncError.message.includes('permission-denied')) {
-            throw new Error('Permission denied. Please check your Firebase security rules.');
+      let cloudFunctionSuccess = false;
+      let cfAttempt = 1;
+      const maxCFAttempts = 2;
+      
+      while (!cloudFunctionSuccess && cfAttempt <= maxCFAttempts) {
+        try {
+          console.log(`Calling initialDataLoad Cloud Function (attempt ${cfAttempt}/${maxCFAttempts})...`);
+          syncResponse = await cloudFunctions.initialDataLoad(user!.uid);
+          console.log(`Initial data load successful: ${syncResponse.newResultsCount} new results, ${syncResponse.totalResultsCount} total results`);
+          cloudFunctionSuccess = true;
+        } catch (syncError) {
+          console.error(`Initial data load attempt ${cfAttempt} failed:`, syncError);
+          
+          // Enhanced error handling for Cloud Function failures
+          if (syncError instanceof Error) {
+            if (syncError.message.includes('INTERNAL') || syncError.message.includes('functions/internal')) {
+              if (cfAttempt < maxCFAttempts) {
+                console.log(`Retrying Cloud Function call after INTERNAL error (attempt ${cfAttempt + 1}/${maxCFAttempts})`);
+                // Wait before retry
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                cfAttempt++;
+                continue;
+              } else {
+                throw new Error('Cloud Function configuration error. The Firebase Functions may need more time to initialize. Please try again in a few moments.');
+              }
+            } else if (syncError.message.includes('unauthenticated')) {
+              throw new Error('Authentication token expired. Please try signing in again.');
+            } else if (syncError.message.includes('permission-denied')) {
+              throw new Error('Permission denied. Please check your Firebase security rules.');
+            }
           }
+          
+          if (cfAttempt === maxCFAttempts) {
+            throw syncError;
+          }
+          cfAttempt++;
         }
-        throw syncError;
       }
       
       // NEW: Extract and store Concept2 User ID if we have results
-      if (syncResponse.totalResultsCount > 0) {
+      if (syncResponse!.totalResultsCount > 0) {
         setMessage('Setting up your profile...');
         
         try {
@@ -136,7 +177,7 @@ export const AuthCallbackPage: React.FC = () => {
       }
       
       // Determine if this is a new user or returning user
-      const isNewUser = syncResponse.totalResultsCount === syncResponse.newResultsCount;
+      const isNewUser = syncResponse!.totalResultsCount === syncResponse!.newResultsCount;
       
       if (isNewUser) {
         // NEW USER: Complete PR setup for all results
@@ -154,7 +195,7 @@ export const AuthCallbackPage: React.FC = () => {
           await cacheService.invalidateCache(user!.uid, 'prEvents');
           
           setStatus('success');
-          setMessage(`Welcome to PB Dash! We've imported ${syncResponse.totalResultsCount} workouts and set up ${prResponse.totalPRsProcessed} personal bests.`);
+          setMessage(`Welcome to PB Dash! We've imported ${syncResponse!.totalResultsCount} workouts and set up ${prResponse.totalPRsProcessed} personal bests.`);
         } catch (prError) {
           console.error('PR processing failed for new user:', prError);
           
@@ -170,14 +211,14 @@ export const AuthCallbackPage: React.FC = () => {
         // RETURNING USER: Process new results if any
         console.log('Returning user detected - processing new results');
         
-        if (syncResponse.newResultsCount > 0) {
+        if (syncResponse!.newResultsCount > 0) {
           setMessage('Organizing your personal bests...');
           
           try {
             // For returning users with new results, we need to use processAllResultsForPRs
             // because initialDataLoad doesn't provide newResultIds, and we need to ensure
             // the new results are properly processed for PRs
-            console.log(`Processing ${syncResponse.newResultsCount} new results for PRs`);
+            console.log(`Processing ${syncResponse!.newResultsCount} new results for PRs`);
             console.log('Calling processAllResultsForPRs Cloud Function...');
             const prResponse = await cloudFunctions.processAllResultsForPRs(user!.uid);
             console.log(`PR processing completed: ${prResponse.totalPRsProcessed} total PRs across ${prResponse.activitiesProcessed} activities`);
@@ -188,7 +229,7 @@ export const AuthCallbackPage: React.FC = () => {
             await cacheService.invalidateCache(user!.uid, 'prEvents');
             
             setStatus('success');
-            setMessage(`Welcome back! We've added ${syncResponse.newResultsCount} new workouts and updated your personal bests.`);
+            setMessage(`Welcome back! We've added ${syncResponse!.newResultsCount} new workouts and updated your personal bests.`);
           } catch (prError) {
             console.error('PR processing failed for returning user:', prError);
             
@@ -197,7 +238,7 @@ export const AuthCallbackPage: React.FC = () => {
               if (prError.message.includes('INTERNAL') || prError.message.includes('functions/internal')) {
                 // For returning users, we can still show success even if PR processing fails
                 setStatus('success');
-                setMessage(`Welcome back! We've added ${syncResponse.newResultsCount} new workouts. Personal records will be updated shortly.`);
+                setMessage(`Welcome back! We've added ${syncResponse!.newResultsCount} new workouts. Personal records will be updated shortly.`);
                 return;
               }
             }
@@ -229,6 +270,8 @@ export const AuthCallbackPage: React.FC = () => {
           errorMessage = error.message + ' Please try signing in again.';
         } else if (error.message.includes('Personal records processing failed')) {
           errorMessage = error.message + ' You can manually recalculate your personal records from your profile page.';
+        } else if (error.message.includes('Failed to refresh authentication token')) {
+          errorMessage = 'Authentication setup failed. Please try the connection process again.';
         } else {
           errorMessage = error.message;
         }
@@ -297,7 +340,7 @@ export const AuthCallbackPage: React.FC = () => {
                 Go to Dashboard
               </button>
               <button
-                onClick={() => navigate('/dashboard')}
+                onClick={() => window.location.reload()}
                 className="w-full bg-slate-100 text-slate-700 py-3 px-6 rounded-xl 
                          hover:bg-slate-200 transition-colors duration-200"
               >
