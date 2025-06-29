@@ -274,7 +274,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
               <ImageIcon className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Generate PB Image</h2>
+              <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Generate PB Image (Beta)</h2>
               <p className="text-sm text-slate-600">
                 Create a shareable image of your personal bests ({availableEvents.length} events with data)
               </p>
