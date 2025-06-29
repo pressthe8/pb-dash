@@ -1,8 +1,26 @@
 import { OAuthTokens, Concept2ApiResponse } from '../types/concept2';
 
-// Environment-based URL configuration
-// Reason: Check for explicit production environment variable
-const isProduction = import.meta.env.VITE_ENVIRONMENT === 'prod' || import.meta.env.PROD;
+// Environment-based URL configuration - FIXED to match Cloud Functions logic
+// Reason: Use Firebase project ID to determine environment, same as Cloud Functions
+const getEnvironment = (): string => {
+  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+  
+  // CRITICAL: Force development environment for bolt-c2 project
+  if (projectId === 'bolt-c2') {
+    return 'dev';
+  }
+  
+  // For pb-dash project, use production
+  if (projectId === 'pb-dash') {
+    return 'prod';
+  }
+  
+  // Default to development for safety
+  return 'dev';
+};
+
+const environment = getEnvironment();
+const isProduction = environment === 'prod';
 const CONCEPT2_BASE_URL = isProduction ? 'https://log.concept2.com/api' : 'https://log-dev.concept2.com/api';
 const OAUTH_BASE_URL = isProduction ? 'https://log.concept2.com/oauth' : 'https://log-dev.concept2.com/oauth';
 
@@ -45,7 +63,8 @@ export class Concept2ApiService {
       throw new Error('Concept2 API credentials contain quote characters. Please remove quotes from your .env file values.');
     }
     
-    console.log('Environment:', isProduction ? 'production' : 'development');
+    console.log('Environment:', environment);
+    console.log('Project ID:', import.meta.env.VITE_FIREBASE_PROJECT_ID);
     console.log('Base URL:', CONCEPT2_BASE_URL);
     
     return { clientId: trimmedClientId, clientSecret: trimmedClientSecret };
@@ -77,6 +96,8 @@ export class Concept2ApiService {
     });
 
     console.log('Generated OAuth URL for redirect');
+    console.log('Using environment:', environment, 'for project:', import.meta.env.VITE_FIREBASE_PROJECT_ID);
+    console.log('OAuth URL:', `${OAUTH_BASE_URL}/authorize`);
     return `${OAUTH_BASE_URL}/authorize?${params.toString()}`;
   }
 
