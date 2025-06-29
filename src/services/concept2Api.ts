@@ -97,55 +97,6 @@ export class Concept2ApiService {
   }
 
   /**
-   * Retrieve stored OAuth state with retry mechanism
-   * Reason: Handle timing issues and temporary storage unavailability
-   */
-  private async getStoredStateWithRetry(maxRetries: number = 3, delayMs: number = 100): Promise<string | null> {
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      console.log(`Attempting to retrieve stored state (attempt ${attempt}/${maxRetries})`);
-      
-      // Try sessionStorage first
-      let storedState = sessionStorage.getItem('oauth_state');
-      if (storedState) {
-        console.log('Found state in sessionStorage');
-        return storedState;
-      }
-      
-      // Try localStorage as fallback
-      storedState = localStorage.getItem('oauth_state');
-      if (storedState) {
-        console.log('Found state in localStorage');
-        
-        // Check if the localStorage state is not too old (max 10 minutes)
-        const timestamp = localStorage.getItem('oauth_state_timestamp');
-        if (timestamp) {
-          const stateAge = Date.now() - parseInt(timestamp);
-          const maxAge = 10 * 60 * 1000; // 10 minutes
-          if (stateAge > maxAge) {
-            console.log('State in localStorage is too old, clearing it');
-            localStorage.removeItem('oauth_state');
-            localStorage.removeItem('oauth_state_timestamp');
-            return null;
-          }
-        }
-        
-        return storedState;
-      }
-      
-      // If this isn't the last attempt, wait before retrying
-      if (attempt < maxRetries) {
-        console.log(`State not found, waiting ${delayMs}ms before retry...`);
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-        // Increase delay for next attempt
-        delayMs *= 2;
-      }
-    }
-    
-    console.log('Failed to retrieve stored state after all retry attempts');
-    return null;
-  }
-
-  /**
    * Exchange authorization code for access token
    * 
    * CRITICAL IMPLEMENTATION NOTE:
@@ -161,20 +112,29 @@ export class Concept2ApiService {
   async exchangeCodeForToken(code: string, state: string): Promise<OAuthTokens> {
     console.log('Starting token exchange process');
     
-    // Use retry mechanism to get stored state
-    const storedState = await this.getStoredStateWithRetry();
-    
+    // Try to get state from sessionStorage first, then localStorage as fallback
+    let storedState = sessionStorage.getItem('oauth_state');
     if (!storedState) {
-      console.error('No stored OAuth state found after retry attempts');
-      throw new Error('OAuth state not found. Please try the authentication process again.');
+      storedState = localStorage.getItem('oauth_state');
+      
+      // Check if the localStorage state is not too old (max 10 minutes)
+      const timestamp = localStorage.getItem('oauth_state_timestamp');
+      if (timestamp) {
+        const stateAge = Date.now() - parseInt(timestamp);
+        const maxAge = 10 * 60 * 1000; // 10 minutes
+        if (stateAge > maxAge) {
+          // State is too old, clear it and reject
+          localStorage.removeItem('oauth_state');
+          localStorage.removeItem('oauth_state_timestamp');
+          throw new Error('OAuth state expired');
+        }
+      }
     }
     
     if (state !== storedState) {
-      console.error('State validation failed', { received: state, stored: storedState });
+      console.error('State validation failed');
       throw new Error('Invalid state parameter');
     }
-
-    console.log('State validation successful');
 
     const { clientId, clientSecret } = this.validateEnvironmentVariables();
     
