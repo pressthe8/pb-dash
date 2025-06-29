@@ -22,7 +22,7 @@ const isDev = environment === 'dev';
 const CONCEPT2_BASE_URL = isDev ? 'https://log-dev.concept2.com/api' : 'https://log.concept2.com/api';
 const OAUTH_BASE_URL = isDev ? 'https://log-dev.concept2.com/oauth' : 'https://log.concept2.com/oauth';
 
-// Define secrets for v2 functions - these must be set in Firebase Console
+// Define secrets for v2 functions
 const concept2ClientId = defineSecret('CONCEPT2_CLIENT_ID');
 const concept2ClientSecret = defineSecret('CONCEPT2_CLIENT_SECRET');
 
@@ -32,23 +32,14 @@ export class Concept2ApiService {
 
   constructor() {
     // Enhanced error handling for missing configuration
-    try {
-      this.clientId = concept2ClientId.value();
-      this.clientSecret = concept2ClientSecret.value();
-    } catch (error) {
-      console.error('Failed to access Concept2 API secrets:', error);
-      throw new Error('Concept2 API credentials not configured. Please set CONCEPT2_CLIENT_ID and CONCEPT2_CLIENT_SECRET secrets in Firebase Console.');
-    }
+    this.clientId = concept2ClientId.value();
+    this.clientSecret = concept2ClientSecret.value();
     
     if (!this.clientId || !this.clientSecret) {
-      console.error('Concept2 API credentials are empty:', {
-        hasClientId: !!this.clientId,
-        hasClientSecret: !!this.clientSecret
-      });
-      throw new Error('Concept2 API credentials not configured. Please set CONCEPT2_CLIENT_ID and CONCEPT2_CLIENT_SECRET secrets in Firebase Console.');
+      throw new Error('Concept2 API credentials not configured. Please set CONCEPT2_CLIENT_ID and CONCEPT2_CLIENT_SECRET secrets.');
     }
     
-    console.log('Concept2ApiService initialized successfully');
+    console.log('Concept2ApiService initialized with client ID:', this.clientId ? 'present' : 'missing');
     console.log('Environment:', environment);
     console.log('Project ID:', process.env.GCLOUD_PROJECT || 'unknown');
     console.log('Base URL:', CONCEPT2_BASE_URL);

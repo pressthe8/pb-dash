@@ -30,15 +30,12 @@ const admin = __importStar(require("firebase-admin"));
 const concept2ApiService_1 = require("./concept2ApiService");
 const paceCalculation_1 = require("./paceCalculation");
 const db = admin.firestore();
-// Define secrets for this function - these must be set in Firebase Console
+// Define secrets for this function
 const concept2ClientId = (0, params_1.defineSecret)('CONCEPT2_CLIENT_ID');
 const concept2ClientSecret = (0, params_1.defineSecret)('CONCEPT2_CLIENT_SECRET');
 exports.initialDataLoad = (0, https_1.onCall)({
     // CRITICAL: Declare the secrets this function uses
-    secrets: [concept2ClientId, concept2ClientSecret],
-    // Set memory and timeout for large data operations
-    memory: '1GiB',
-    timeoutSeconds: 540, // 9 minutes
+    secrets: [concept2ClientId, concept2ClientSecret]
 }, async (request) => {
     var _a, _b;
     // Enhanced authentication verification
@@ -62,17 +59,6 @@ exports.initialDataLoad = (0, https_1.onCall)({
     }
     try {
         console.log(`Starting initial data load for user: ${userId}`);
-        // Verify secrets are available
-        const clientId = concept2ClientId.value();
-        const clientSecret = concept2ClientSecret.value();
-        if (!clientId || !clientSecret) {
-            console.error('Missing Concept2 API credentials:', {
-                hasClientId: !!clientId,
-                hasClientSecret: !!clientSecret
-            });
-            throw new Error('Concept2 API credentials not configured. Please set CONCEPT2_CLIENT_ID and CONCEPT2_CLIENT_SECRET secrets in Firebase Console.');
-        }
-        console.log('Concept2 API credentials verified');
         // STEP 1: Initialize user PR types from template
         await initializeUserPRTypes(userId);
         // Get user tokens
@@ -111,10 +97,6 @@ exports.initialDataLoad = (0, https_1.onCall)({
             if (error.message === 'REAUTH_REQUIRED') {
                 await deleteUserTokens(userId);
                 throw new Error('Concept2 re-authentication required');
-            }
-            // Provide more specific error messages for common issues
-            if (error.message.includes('credentials not configured')) {
-                throw new Error('Concept2 API credentials not configured in Firebase. Please contact support.');
             }
         }
         throw new Error(`Initial data load failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
