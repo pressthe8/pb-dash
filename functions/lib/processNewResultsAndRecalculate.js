@@ -164,6 +164,7 @@ async function processNewResultsForPRs(userId, newResults) {
                         user_id: userId,
                         results_id: result.id.toString(),
                         activity_key: prType.activity_key,
+                        sport: result.type, // NEW: Add sport field directly from result
                         pr_scope: [], // Will be assigned later
                         metric_type: prType.metric_type,
                         metric_value: metricValue,

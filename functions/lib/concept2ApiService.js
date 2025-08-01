@@ -2,8 +2,25 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Concept2ApiService = void 0;
 const params_1 = require("firebase-functions/params");
-const CONCEPT2_BASE_URL = 'https://log-dev.concept2.com/api';
-const OAUTH_BASE_URL = 'https://log-dev.concept2.com/oauth';
+// Environment-based URL configuration for Cloud Functions
+// FIXED: Force development environment for bolt-c2 project
+const getEnvironment = () => {
+    const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT;
+    // CRITICAL: Force development environment for bolt-c2 project
+    if (projectId === 'bolt-c2') {
+        return 'dev';
+    }
+    // For pb-dash project, use production
+    if (projectId === 'pb-dash') {
+        return 'prod';
+    }
+    // Default to development for safety
+    return 'dev';
+};
+const environment = getEnvironment();
+const isDev = environment === 'dev';
+const CONCEPT2_BASE_URL = isDev ? 'https://log-dev.concept2.com/api' : 'https://log.concept2.com/api';
+const OAUTH_BASE_URL = isDev ? 'https://log-dev.concept2.com/oauth' : 'https://log.concept2.com/oauth';
 // Define secrets for v2 functions
 const concept2ClientId = (0, params_1.defineSecret)('CONCEPT2_CLIENT_ID');
 const concept2ClientSecret = (0, params_1.defineSecret)('CONCEPT2_CLIENT_SECRET');
@@ -16,6 +33,9 @@ class Concept2ApiService {
             throw new Error('Concept2 API credentials not configured. Please set CONCEPT2_CLIENT_ID and CONCEPT2_CLIENT_SECRET secrets.');
         }
         console.log('Concept2ApiService initialized with client ID:', this.clientId ? 'present' : 'missing');
+        console.log('Environment:', environment);
+        console.log('Project ID:', process.env.GCLOUD_PROJECT || 'unknown');
+        console.log('Base URL:', CONCEPT2_BASE_URL);
     }
     /**
      * Check if access token is expired or will expire soon

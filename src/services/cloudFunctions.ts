@@ -62,6 +62,17 @@ interface DeleteUserAccountResponse {
   deletedDocuments: number;
 }
 
+interface UploadPbGridRequest {
+  userId: string;
+  imageData: string;
+}
+
+interface UploadPbGridResponse {
+  success: boolean;
+  imageUrl: string;
+  message?: string;
+}
+
 export class CloudFunctionsService {
   private static instance: CloudFunctionsService;
   
@@ -262,6 +273,28 @@ export class CloudFunctionsService {
       const deleteFunction = httpsCallable<{ userId: string }, DeleteUserAccountResponse>(functions, functionName);
       
       const result = await deleteFunction({ userId });
+      
+      console.log(`${functionName} completed:`, result.data);
+      return result.data;
+    } catch (error) {
+      console.error(`${functionName} failed:`, error);
+      this.handleCloudFunctionError(error, functionName);
+    }
+  }
+
+  /**
+   * Upload PB grid image to Firebase Storage with rate limiting
+   */
+  async uploadPbGrid(userId: string, imageData: string): Promise<UploadPbGridResponse> {
+    const functionName = 'uploadPbGridFunction';
+    
+    try {
+      console.log(`Triggering ${functionName} for user:`, userId);
+      
+      // Use Firebase SDK's httpsCallable which automatically handles authentication
+      const uploadFunction = httpsCallable<UploadPbGridRequest, UploadPbGridResponse>(functions, functionName);
+      
+      const result = await uploadFunction({ userId, imageData });
       
       console.log(`${functionName} completed:`, result.data);
       return result.data;

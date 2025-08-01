@@ -1,5 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { Download, Share2, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Download, Share2, Image as ImageIcon, Loader2, ExternalLink, Copy } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { CloudFunctionsService } from '../services/cloudFunctions';
 import { PRStats, SportType, SPORT_MAPPING } from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
 
@@ -65,8 +67,14 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
   userDisplayName = 'Athlete'
 }) => {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const { user } = useAuth();
+  const cloudFunctions = CloudFunctionsService.getInstance();
 
   // Get current season identifier
   const getCurrentSeason = (): string => {
@@ -121,6 +129,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
 
   const generateImage = async () => {
     setIsGenerating(true);
+    setUploadError(null);
     
     try {
       // DYNAMIC: Get only events with data
@@ -229,35 +238,71 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
       const imageUrl = canvas.toDataURL('image/png');
       setGeneratedImageUrl(imageUrl);
       
+      // Automatically upload to Firebase Storage
+      if (user?.uid) {
+        setIsUploading(true);
+        try {
+          const uploadResult = await cloudFunctions.uploadPbGrid(user.uid, imageUrl);
+          setUploadedImageUrl(uploadResult.imageUrl);
+          console.log('Image uploaded to Firebase Storage:', uploadResult.imageUrl);
+        } catch (uploadError) {
+          console.error('Error uploading image:', uploadError);
+          setUploadError(uploadError instanceof Error ? uploadError.message : 'Failed to upload image');
+        } finally {
+          setIsUploading(false);
+        }
+      }
+      
       console.log(`Dynamic image generated: ${canvas.width}x${canvas.height} with ${availableEvents.length} events using Verdana font`);
     } catch (error) {
       console.error('Error generating image:', error);
+      setUploadError('Failed to generate image');
     } finally {
       setIsGenerating(false);
     }
   };
 
   const downloadImage = () => {
-    if (!generatedImageUrl) return;
+    const imageUrl = uploadedImageUrl || generatedImageUrl;
+    if (!imageUrl) return;
 
     const link = document.createElement('a');
     const cleanName = userDisplayName.replace(/\s+/g, '_').toLowerCase();
-    link.download = `${cleanName}_pbdash_export.png`;
-    link.href = generatedImageUrl;
+    link.download = `${cleanName}_pbdash_grid.png`;
+    link.href = imageUrl;
     link.click();
   };
 
+  const openImageUrl = () => {
+    if (!uploadedImageUrl) return;
+    window.open(uploadedImageUrl, '_blank');
+  };
+
   const copyToClipboard = async () => {
-    if (!generatedImageUrl) return;
+    const imageUrl = uploadedImageUrl || generatedImageUrl;
+    if (!imageUrl) return;
 
     try {
-      const response = await fetch(generatedImageUrl);
+      const response = await fetch(imageUrl);
       const blob = await response.blob();
       await navigator.clipboard.write([
         new ClipboardItem({ 'image/png': blob })
       ]);
     } catch (error) {
       console.error('Error copying to clipboard:', error);
+    }
+  };
+
+  const copyBBCode = async () => {
+    if (!uploadedImageUrl) return;
+
+    const bbCode = `[url=https://pbdash.com][img]${uploadedImageUrl}[/img][/url]`;
+    
+    try {
+      await navigator.clipboard.writeText(bbCode);
+      console.log('BB code copied to clipboard');
+    } catch (error) {
+      console.error('Error copying BB code to clipboard:', error);
     }
   };
 
@@ -283,32 +328,26 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
           
           {/* Mobile-optimized button layout */}
           <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-            {!generatedImageUrl ? (
+            {!generatedImageUrl && !uploadedImageUrl ? (
               // Show only Generate button when no image exists
               <button
                 onClick={generateImage}
-                disabled={isGenerating || availableEvents.length === 0}
+                disabled={isGenerating || isUploading || availableEvents.length === 0}
                 className="flex items-center justify-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isGenerating ? (
+                {isGenerating || isUploading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <ImageIcon className="w-4 h-4" />
                 )}
                 <span className="text-sm">
-                  {isGenerating ? 'Generating...' : availableEvents.length === 0 ? 'No Data Available' : 'Generate Image'}
+                  {isGenerating ? 'Generating...' : isUploading ? 'Uploading...' : availableEvents.length === 0 ? 'No Data Available' : 'Generate Image'}
                 </span>
               </button>
             ) : (
               // Show action buttons when image exists
               <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-                <button
-                  onClick={copyToClipboard}
-                  className="flex items-center justify-center space-x-2 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors duration-200"
-                >
-                  <Share2 className="w-4 h-4" />
-                  <span className="text-sm">Copy</span>
-                </button>
+                {/* Download Button */}
                 <button
                   onClick={downloadImage}
                   className="flex items-center justify-center space-x-2 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200"
@@ -316,13 +355,45 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
                   <Download className="w-4 h-4" />
                   <span className="text-sm">Download</span>
                 </button>
+                
+                {/* Open URL Button - only show if uploaded to Firebase */}
+                {uploadedImageUrl && (
+                  <button
+                    onClick={openImageUrl}
+                    className="flex items-center justify-center space-x-2 px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors duration-200"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span className="text-sm">Open URL</span>
+                  </button>
+                )}
+                
+                {/* Copy Image Button */}
+                <button
+                  onClick={copyToClipboard}
+                  className="flex items-center justify-center space-x-2 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors duration-200"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span className="text-sm">Copy</span>
+                </button>
+                
+                {/* Copy BB Code Button - only show if uploaded to Firebase */}
+                {uploadedImageUrl && (
+                  <button
+                    onClick={copyBBCode}
+                    className="flex items-center justify-center space-x-2 px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors duration-200"
+                  >
+                    <Copy className="w-4 h-4" />
+                    <span className="text-sm">Copy BB Code</span>
+                  </button>
+                )}
+                
                 {/* Regenerate button - smaller and less prominent */}
                 <button
                   onClick={generateImage}
-                  disabled={isGenerating}
+                  disabled={isGenerating || isUploading}
                   className="flex items-center justify-center space-x-2 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isGenerating ? (
+                  {isGenerating || isUploading ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
                   ) : (
                     <ImageIcon className="w-3 h-3" />
@@ -333,6 +404,13 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
             )}
           </div>
         </div>
+        
+        {/* Upload Error Display */}
+        {uploadError && (
+          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-700">{uploadError}</p>
+          </div>
+        )}
       </div>
 
       <div className="p-4 sm:p-6">
@@ -348,22 +426,35 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
         )}
 
         {/* Generated Image Preview - Show first when available */}
-        {generatedImageUrl && (
+        {(generatedImageUrl || uploadedImageUrl) && (
           <div className="mb-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-3">Generated Image</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-slate-900">Generated Image</h3>
+              {uploadedImageUrl && (
+                <div className="flex items-center space-x-2 text-sm text-green-600">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span>Uploaded & Shareable</span>
+                </div>
+              )}
+            </div>
             <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
               <img 
-                src={generatedImageUrl} 
+                src={uploadedImageUrl || generatedImageUrl} 
                 alt="Generated PB Image" 
                 className="max-w-full h-auto rounded-lg shadow-sm"
                 style={{ imageRendering: 'pixelated' }}
               />
+              {uploadedImageUrl && (
+                <div className="mt-3 p-2 bg-slate-100 rounded text-xs text-slate-600 break-all">
+                  <strong>Shareable URL:</strong> {uploadedImageUrl}
+                </div>
+              )}
             </div>
           </div>
         )}
 
         {/* Preview Table - Only show when we have events and (no image generated or on larger screens) */}
-        {availableEvents.length > 0 && (!generatedImageUrl || window.innerWidth >= 640) && (
+        {availableEvents.length > 0 && (!(generatedImageUrl || uploadedImageUrl) || window.innerWidth >= 640) && (
           <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
             <h3 className="text-sm font-medium text-slate-700 mb-3">
               Preview ({availableEvents.length} events)
