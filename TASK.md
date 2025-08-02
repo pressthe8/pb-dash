@@ -35,6 +35,12 @@
 - [x] **COMPLETED**: Improved visual hierarchy with better spacing and typography
 - [x] **COMPLETED**: Added hover animations and scale effects for interactive elements
 
+### PR Image Generator UI Cleanup - January 21, 2025 7:15 PM
+- [x] **COMPLETED**: Removed shareable URL display from generated image preview
+- [x] **COMPLETED**: Removed "Copy" button that copied image to clipboard
+- [x] **COMPLETED**: Fixed Regenerate button to use RefreshCw icon instead of ImageIcon
+- [x] **COMPLETED**: Improved button sizing consistency in action button group
+
 ### Personal Bests Table Filtering Enhancement - January 21, 2025 5:05 PM
 - [x] **COMPLETED**: Added dynamic PB column header that changes based on filter (e.g., "2025 PB", "2023/24 PB")
 - [x] **COMPLETED**: Implemented selective trophy display - only show gold trophies for all-time PBs in filtered views

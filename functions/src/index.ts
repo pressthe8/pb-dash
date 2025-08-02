@@ -9,3 +9,4 @@ export { incrementalSync as incrementalSyncFunction } from './incrementalSync';
 export { processAllResultsForPRs } from './processAllResultsForPRs';
 export { processNewResultsAndRecalculate } from './processNewResultsAndRecalculate';
 export { deleteUserAccount as deleteUserAccountFunction } from './deleteUserAccount';
+export { uploadPbGrid as uploadPbGridFunction } from './uploadPbGrid';
