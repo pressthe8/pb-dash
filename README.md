@@ -11,7 +11,6 @@ A modern, responsive web application that connects to your Concept2 Logbook acco
 
 ### 📊 Performance Analytics
 - **Workout Statistics** - Total workouts, distance, time, and averages
-- **Recent Activity** - View your latest rowing sessions
 - **Beautiful Dashboard** - Clean, modern interface with intuitive navigation
 
 ### 🔒 Security & Privacy
