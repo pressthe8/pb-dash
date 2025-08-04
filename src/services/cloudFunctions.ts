@@ -1,5 +1,6 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../config/firebase';
+import { SlackNotificationPayload } from '../../functions/src/types';
 
 // Types for Cloud Function requests/responses
 interface SyncRequest {
@@ -71,6 +72,10 @@ interface UploadPbGridResponse {
   success: boolean;
   imageUrl: string;
   message?: string;
+}
+
+interface SlackNotificationResponse {
+  success: boolean;
 }
 
 export class CloudFunctionsService {
@@ -301,6 +306,30 @@ export class CloudFunctionsService {
     } catch (error) {
       console.error(`${functionName} failed:`, error);
       this.handleCloudFunctionError(error, functionName);
+    }
+  }
+
+  /**
+   * Send a Slack notification via Cloud Function
+   */
+  async sendSlackNotification(payload: SlackNotificationPayload): Promise<SlackNotificationResponse> {
+    const functionName = 'sendSlackNotification';
+    
+    try {
+      console.log(`Triggering ${functionName} with payload:`, payload);
+      
+      // Use Firebase SDK's httpsCallable which automatically handles authentication
+      const slackFunction = httpsCallable<SlackNotificationPayload, SlackNotificationResponse>(functions, functionName);
+      
+      const result = await slackFunction(payload);
+      
+      console.log(`${functionName} completed:`, result.data);
+      return result.data;
+    } catch (error) {
+      console.error(`${functionName} failed:`, error);
+      // Don't use handleCloudFunctionError here since Slack failures shouldn't block user flow
+      console.warn('Slack notification failed but continuing with user flow');
+      return { success: false };
     }
   }
 

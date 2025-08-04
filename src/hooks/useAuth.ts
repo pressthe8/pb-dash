@@ -454,6 +454,23 @@ export const useAuthProvider = () => {
     // Set connection expired flag for UI
     setConnectionExpired(true);
     
+    // Send Slack notification for token error (without PII)
+    try {
+      await cloudFunctions.sendSlackNotification({
+        type: 'error',
+        userId: user.uid,
+        details: {
+          errorMessage: error.message,
+          context: 'Frontend: Concept2 Token Refresh',
+          errorStack: error.stack,
+        },
+      });
+      console.log('Token error Slack notification sent.');
+    } catch (slackError) {
+      console.error('Failed to send token error Slack notification:', slackError);
+      // Don't block user flow if Slack notification fails
+    }
+    
     // Clean up invalid tokens
     try {
       await firebaseService.deleteTokens(user.uid);

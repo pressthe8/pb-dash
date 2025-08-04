@@ -80,3 +80,21 @@ export interface PREvent {
   created_at: any; // Firestore timestamp
   updated_at: any; // Firestore timestamp
 }
+
+export interface SlackNotificationPayload {
+  type: 'new_user' | 'error';
+  
+  // Common fields (optional, but useful for context)
+  userId?: string; // Firebase User ID (internal, non-identifiable)
+
+  // Specific details based on the 'type'
+  details?: {
+    // For 'new_user'
+    authProvider?: string; // e.g., 'Google'
+
+    // For 'error'
+    errorMessage?: string;
+    errorStack?: string; // Full stack trace
+    context?: string; // e.g., 'Cloud Function: initialDataLoad', 'Frontend: DashboardPage'
+  };
+}
