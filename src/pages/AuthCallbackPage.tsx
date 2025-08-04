@@ -153,6 +153,21 @@ export const AuthCallbackPage: React.FC = () => {
           await cacheService.invalidateCache(user!.uid, 'prStats');
           await cacheService.invalidateCache(user!.uid, 'prEvents');
           
+          // Send Slack notification for new user (without PII)
+          try {
+            await cloudFunctions.sendSlackNotification({
+              type: 'new_user',
+              userId: user!.uid,
+              details: {
+                authProvider: user!.providerData[0]?.providerId === 'google.com' ? 'Google' : 'Unknown',
+              },
+            });
+            console.log('New user Slack notification sent.');
+          } catch (slackError) {
+            console.error('Failed to send new user Slack notification:', slackError);
+            // Don't block user flow if Slack notification fails
+          }
+          
           setStatus('success');
           setMessage(`Welcome to PB Dash! We've imported ${syncResponse.totalResultsCount} workouts and set up ${prResponse.totalPRsProcessed} personal bests.`);
         } catch (prError) {

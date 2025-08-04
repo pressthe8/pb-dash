@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.uploadPbGridFunction = exports.deleteUserAccountFunction = exports.processNewResultsAndRecalculate = exports.processAllResultsForPRs = exports.incrementalSyncFunction = exports.initialDataLoadFunction = void 0;
+exports.sendSlackNotification = exports.uploadPbGridFunction = exports.deleteUserAccountFunction = exports.processNewResultsAndRecalculate = exports.processAllResultsForPRs = exports.incrementalSyncFunction = exports.initialDataLoadFunction = void 0;
 const admin = __importStar(require("firebase-admin"));
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -40,4 +40,6 @@ var deleteUserAccount_1 = require("./deleteUserAccount");
 Object.defineProperty(exports, "deleteUserAccountFunction", { enumerable: true, get: function () { return deleteUserAccount_1.deleteUserAccount; } });
 var uploadPbGrid_1 = require("./uploadPbGrid");
 Object.defineProperty(exports, "uploadPbGridFunction", { enumerable: true, get: function () { return uploadPbGrid_1.uploadPbGrid; } });
+var sendSlackNotification_1 = require("./sendSlackNotification");
+Object.defineProperty(exports, "sendSlackNotification", { enumerable: true, get: function () { return sendSlackNotification_1.sendSlackNotification; } });
 //# sourceMappingURL=index.js.map

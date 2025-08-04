@@ -310,6 +310,30 @@ export class CloudFunctionsService {
   }
 
   /**
+   * Send a Slack notification via Cloud Function
+   */
+  async sendSlackNotification(payload: SlackNotificationPayload): Promise<SlackNotificationResponse> {
+    const functionName = 'sendSlackNotification';
+    
+    try {
+      console.log(`Triggering ${functionName} with payload:`, payload);
+      
+      // Use Firebase SDK's httpsCallable which automatically handles authentication
+      const slackFunction = httpsCallable<SlackNotificationPayload, SlackNotificationResponse>(functions, functionName);
+      
+      const result = await slackFunction(payload);
+      
+      console.log(`${functionName} completed:`, result.data);
+      return result.data;
+    } catch (error) {
+      console.error(`${functionName} failed:`, error);
+      // Don't use handleCloudFunctionError here since Slack failures shouldn't block user flow
+      console.warn('Slack notification failed but continuing with user flow');
+      return { success: false };
+    }
+  }
+
+  /**
    * Legacy sync function (keeping for backward compatibility)
    * @deprecated Use initialDataLoad or incrementalSync instead
    */
