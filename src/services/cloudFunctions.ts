@@ -1,5 +1,6 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../config/firebase';
+import { SlackNotificationPayload } from '../../functions/src/types';
 
 // Types for Cloud Function requests/responses
 interface SyncRequest {
@@ -71,6 +72,10 @@ interface UploadPbGridResponse {
   success: boolean;
   imageUrl: string;
   message?: string;
+}
+
+interface SlackNotificationResponse {
+  success: boolean;
 }
 
 export class CloudFunctionsService {
