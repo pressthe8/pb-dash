@@ -245,6 +245,23 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
           const uploadResult = await cloudFunctions.uploadPbGrid(user.uid, imageUrl);
           setUploadedImageUrl(uploadResult.imageUrl);
           console.log('Image uploaded to Firebase Storage:', uploadResult.imageUrl);
+          
+          // Send Slack notification for successful image save
+          try {
+            await cloudFunctions.sendSlackNotification({
+              type: 'pb_image_saved',
+              userId: user.uid,
+              details: {
+                imageUrl: uploadResult.imageUrl,
+                sport: SPORT_MAPPING[selectedSport],
+                userDisplayName: userDisplayName
+              }
+            });
+            console.log('PB image save Slack notification sent successfully');
+          } catch (slackError) {
+            console.error('Failed to send PB image save Slack notification:', slackError);
+            // Don't block user flow if Slack notification fails
+          }
         } catch (uploadError) {
           console.error('Error uploading image:', uploadError);
           setUploadError(uploadError instanceof Error ? uploadError.message : 'Failed to upload image');
