@@ -82,7 +82,7 @@ export interface PREvent {
 }
 
 export interface SlackNotificationPayload {
-  type: 'new_user' | 'error';
+  type: 'new_user' | 'error' | 'pb_image_saved';
   
   // Common fields (optional, but useful for context)
   userId?: string; // Firebase User ID (internal, non-identifiable)
@@ -96,5 +96,10 @@ export interface SlackNotificationPayload {
     errorMessage?: string;
     errorStack?: string; // Full stack trace
     context?: string; // e.g., 'Cloud Function: initialDataLoad', 'Frontend: DashboardPage'
+
+    // For 'pb_image_saved'
+    imageUrl?: string; // Public URL of the saved image
+    sport?: string; // e.g., 'Row', 'Bike', 'Ski'
+    userDisplayName?: string; // User's display name (non-sensitive)
   };
 }
