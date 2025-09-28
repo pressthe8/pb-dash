@@ -1,5 +1,14 @@
 import { useState, useEffect, createContext, useContext } from 'react';
-import { User, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
+import { 
+  User, 
+  signInWithPopup, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  GoogleAuthProvider, 
+  onAuthStateChanged, 
+  signOut as firebaseSignOut 
+} from 'firebase/auth';
 import { auth } from '../config/firebase';
 import { FirebaseService } from '../services/firebaseService';
 import { CloudFunctionsService } from '../services/cloudFunctions';
@@ -11,7 +20,10 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   concept2Connected: boolean;
-  signIn: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   checkConcept2Connection: () => Promise<boolean>;
   storeConcept2Tokens: (tokens: OAuthTokens) => Promise<void>;
@@ -220,7 +232,7 @@ export const useAuthProvider = () => {
     }
   };
 
-  const signIn = async () => {
+  const signInWithGoogle = async () => {
     try {
       console.log('Starting Google sign-in process');
       const provider = new GoogleAuthProvider();
@@ -232,6 +244,38 @@ export const useAuthProvider = () => {
     }
   };
 
+  const signInWithEmail = async (email: string, password: string) => {
+    try {
+      console.log('Starting email/password sign-in process');
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      console.log('Email sign-in successful:', result.user.email);
+    } catch (error) {
+      console.error('Email sign-in error:', error);
+      throw error;
+    }
+  };
+
+  const signUpWithEmail = async (email: string, password: string) => {
+    try {
+      console.log('Starting email/password sign-up process');
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      console.log('Email sign-up successful:', result.user.email);
+    } catch (error) {
+      console.error('Email sign-up error:', error);
+      throw error;
+    }
+  };
+
+  const resetPassword = async (email: string) => {
+    try {
+      console.log('Sending password reset email to:', email);
+      await sendPasswordResetEmail(auth, email);
+      console.log('Password reset email sent successfully');
+    } catch (error) {
+      console.error('Password reset error:', error);
+      throw error;
+    }
+  };
   const signOut = async () => {
     try {
       console.log('Starting sign-out process');
@@ -483,7 +527,10 @@ export const useAuthProvider = () => {
     user,
     loading,
     concept2Connected,
-    signIn,
+    signInWithGoogle,
+    signInWithEmail,
+    signUpWithEmail,
+    resetPassword,
     signOut,
     checkConcept2Connection,
     storeConcept2Tokens,
