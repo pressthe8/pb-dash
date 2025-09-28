@@ -6,7 +6,6 @@ import { CloudFunctionsService } from '../services/cloudFunctions';
 import { FirebaseService } from '../services/firebaseService';
 import { DataCacheService } from '../services/dataCacheService';
 import { LoadingSpinner } from '../components/LoadingSpinner';
-import { BoltBadge } from '../components/BoltBadge';
 import { CheckCircle, AlertCircle } from 'lucide-react';
 
 export const AuthCallbackPage: React.FC = () => {
@@ -277,9 +276,6 @@ export const AuthCallbackPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-      {/* Bolt.new Badge */}
-      <BoltBadge />
-      
       <div className="max-w-md w-full">
         <div className="bg-white rounded-2xl p-8 shadow-lg border border-slate-200 text-center">
           <div className="mb-6">

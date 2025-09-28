@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { LoadingSpinner } from '../components/LoadingSpinner';
-import { BoltBadge } from '../components/BoltBadge';
 import { FlamingStopwatchLogo } from '../components/FlamingStopwatchLogo';
 
 type AuthMode = 'signin' | 'signup';
@@ -117,9 +116,6 @@ export const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-blue-700 flex items-center justify-center p-4">
-      {/* Bolt.new Badge */}
-      <BoltBadge />
-      
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
