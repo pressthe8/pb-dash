@@ -92,3 +92,11 @@
 - [x] **COMPLETED**: Maintained Google Sign-In option alongside email/password authentication
 - [x] **COMPLETED**: Added loading states and proper form validation
 - [x] **COMPLETED**: Updated branding to focus on "PB Dash" and Concept2 tracking
+
+### Bug Fix: Race Condition in Background Sync - October 1, 2025
+- [x] **COMPLETED**: Removed redundant concept2Connected state check in setTimeout callback that caused race condition
+
+### Architecture Fix: Circular Dependency in DashboardPage - October 1, 2025
+- [x] **COMPLETED**: Replaced hasLoadedData state with hasLoadedDataRef to eliminate circular dependency
+- [x] **COMPLETED**: Removed need for eslint-disable comments and React hooks rule violations
+- [x] **COMPLETED**: Fixed data flow architecture to work with React's dependency tracking

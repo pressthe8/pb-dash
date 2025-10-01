@@ -88,13 +88,9 @@ export const useAuthProvider = () => {
           if (hasValidConnection) {
             console.log('User has valid Concept2 connection, scheduling background sync');
             const timeoutId = setTimeout(() => {
-              // Reason: Double-check connection state before running background sync
-              if (concept2Connected) {
-                syncNewResultsInBackground(user.uid);
-              } else {
-                console.log('Background sync cancelled - connection state changed');
-              }
-            }, 2000); // Increased delay to 2 seconds to allow connection state to stabilize
+              // Reason: syncNewResultsInBackground validates tokens internally, no need for redundant check
+              syncNewResultsInBackground(user.uid);
+            }, 2000);
             setBackgroundSyncTimeout(timeoutId);
           }
         } catch (error) {

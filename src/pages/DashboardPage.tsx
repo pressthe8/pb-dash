@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { auth } from '../config/firebase';
 import { usePersonalRecords } from '../hooks/usePersonalRecords';
@@ -35,7 +35,7 @@ export const DashboardPage: React.FC = () => {
   const [allResults, setAllResults] = useState<StoredResult[]>([]);
   const [allPREvents, setAllPREvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [hasLoadedData, setHasLoadedData] = useState(false);
+  const hasLoadedDataRef = useRef(false);
   const [stats, setStats] = useState<DashboardStats>({
     totalWorkouts: 0,
     totalDistance: 0,
@@ -193,22 +193,22 @@ export const DashboardPage: React.FC = () => {
     }
   }, [user?.uid, firebaseService, cacheService, calculateStats, getPREvents]);
 
-  // Reason: Fixed useEffect to prevent circular dependency with hasLoadedData
+  // Reason: Use ref instead of state to avoid circular dependency
   useEffect(() => {
     // Exit early if conditions aren't met or if we've already loaded
-    if (!user || !concept2Connected || hasLoadedData) {
-      // Reset state when user or connection changes
+    if (!user || !concept2Connected || hasLoadedDataRef.current) {
+      // Reset ref when user or connection changes
       if (!user || !concept2Connected) {
-        setHasLoadedData(false);
+        hasLoadedDataRef.current = false;
         setLoading(false);
       }
       return;
     }
-    
+
     console.log('User authenticated and Concept2 connected, loading dashboard data');
-    setHasLoadedData(true);
+    hasLoadedDataRef.current = true;
     loadDashboardData();
-  }, [user, concept2Connected, loadDashboardData]); // Reason: Remove hasLoadedData from dependencies
+  }, [user, concept2Connected, loadDashboardData]);
 
   // Reason: Restore cache when component mounts
   useEffect(() => {
