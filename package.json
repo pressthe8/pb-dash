@@ -11,19 +11,19 @@
     "init-pr-types": "node scripts/initializePRTypes.js"
   },
   "dependencies": {
-    "@nivo/core": "^0.87.0",
-    "@nivo/line": "^0.87.0",
+    "@nivo/core": "^0.99.0",
+    "@nivo/line": "^0.99.0",
     "firebase": "^10.7.2",
     "html2canvas": "^1.4.1",
-    "lucide-react": "^0.344.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "lucide-react": "^0.556.0",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
     "react-router-dom": "^6.20.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
-    "@types/react": "^18.3.5",
-    "@types/react-dom": "^18.3.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.18",
     "eslint": "^9.9.1",
