@@ -77,9 +77,10 @@ export const incrementalSync = onCall<IncrementalSyncRequest>(
       };
 
       // Determine sync parameters
+      // Concept2 API requires "YYYY-MM-DD HH:MM:SS" format (GMT) — not ISO 8601 with T/Z
       let updatedAfter: string | undefined;
       if (!forceFullSync && tokens.last_sync_at) {
-        updatedAfter = tokens.last_sync_at;
+        updatedAfter = tokens.last_sync_at.replace('T', ' ').replace('Z', '').substring(0, 19);
         console.log(`Incremental sync: fetching results updated after ${updatedAfter}`);
       } else {
         console.log('Full sync: fetching all results');
