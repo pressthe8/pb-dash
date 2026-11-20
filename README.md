@@ -59,11 +59,11 @@ A modern, responsive web application that connects to your Concept2 Logbook acco
    ```
 
 2. **Install dependencies**
+   Use Node.js 22 for the Functions build.
+
    ```bash
    npm install
-   cd functions
-   npm install
-   cd ..
+   npm --prefix functions ci
    ```
 
 3. **Environment Configuration**
@@ -88,20 +88,9 @@ A modern, responsive web application that connects to your Concept2 Logbook acco
 
    **⚠️ IMPORTANT**: Make sure your Concept2 credentials are correct and the redirect URI in your Concept2 Developer Portal matches exactly your current environment URL.
 
-4. **🚨 CRITICAL: Configure Firebase Cloud Functions**
-   
-   **Set Concept2 API credentials for Cloud Functions** (this fixes the "internal" sync error):
-   
-   ```bash
-   # Replace YOUR_CONCEPT2_CLIENT_ID and YOUR_CONCEPT2_CLIENT_SECRET with your actual credentials
-   firebase functions:config:set concept2.client_id="YOUR_CONCEPT2_CLIENT_ID"
-   firebase functions:config:set concept2.client_secret="YOUR_CONCEPT2_CLIENT_SECRET"
-   
-   # Deploy functions with the new configuration
-   firebase deploy --only functions
-   ```
-   
-   **Without this step, data synchronization will fail with "internal" errors.**
+4. **Configure Firebase Cloud Functions**
+
+   Set up Secret Manager for your target project and follow the [Functions deployment instructions](#firebase-functions-deployment).
 
 5. **🚨 CRITICAL: Configure Firebase Authorized Domains**
    
@@ -280,30 +269,7 @@ After setup, you should see these indexes:
 
 ### "Internal" Error During Data Sync
 
-**🚨 MOST COMMON ISSUE**: If you see "Error syncing data: internal" when clicking the "Sync New Data" button:
-
-**Root Cause**: The Firebase Cloud Functions don't have the Concept2 API credentials configured.
-
-**Solution**:
-1. **Set the credentials using Firebase CLI**:
-   ```bash
-   firebase functions:config:set concept2.client_id="YOUR_CONCEPT2_CLIENT_ID"
-   firebase functions:config:set concept2.client_secret="YOUR_CONCEPT2_CLIENT_SECRET"
-   ```
-   
-2. **Replace the placeholders** with your actual credentials from the Concept2 Developer Portal
-
-3. **Redeploy the functions**:
-   ```bash
-   firebase deploy --only functions
-   ```
-
-4. **Verify the configuration** (optional):
-   ```bash
-   firebase functions:config:get
-   ```
-
-**Important**: Without this configuration, all data synchronization operations will fail with "internal" errors.
+Check the Cloud Functions logs for the underlying error. If the logs report missing Concept2 credentials, check that `CONCEPT2_CLIENT_ID` and `CONCEPT2_CLIENT_SECRET` exist in Secret Manager for that Firebase project. After adding or changing a secret, [redeploy the functions](#firebase-functions-deployment) so they pick up the new version.
 
 ### Firebase Authentication Errors
 
@@ -391,6 +357,29 @@ If you see "Missing or insufficient permissions":
 
 ## Deployment
 
+### Firebase Functions Deployment
+
+Use Node.js 22 and a current [Firebase CLI](https://firebase.google.com/docs/cli). The GitHub Actions workflow installs dependencies and builds the Functions package. Deploy manually from the repository root.
+
+For a new target project, set `CONCEPT2_CLIENT_ID`, `CONCEPT2_CLIENT_SECRET`, and `SLACK_WEBHOOK_URL` in that project's Secret Manager. Use `firebase functions:secrets:set SECRET_NAME --project PROJECT_ID` to enter a value at the prompt. Existing projects can reuse their configured secrets for a runtime upgrade.
+
+```bash
+npm --prefix functions ci
+npm --prefix functions run build
+```
+
+Use the development target for Firebase deployment testing:
+
+```bash
+firebase deploy --only functions --project bolt-c2
+```
+
+Run the production deployment separately when ready:
+
+```bash
+firebase deploy --only functions --project pb-dash
+```
+
 ### Netlify Deployment
 
 1. **Connect your repository** to Netlify
@@ -400,11 +389,7 @@ If you see "Missing or insufficient permissions":
 3. **Set environment variables** in Netlify dashboard
 4. **Update Firebase authorized domains** to include your production domain
 5. **Update Concept2 redirect URI** to your production domain
-6. **Deploy Firebase Functions**:
-   ```bash
-   firebase deploy --only functions
-   ```
-7. **Deploy!**
+6. **Deploy the site on Netlify**
 
 The `netlify.toml` file is already configured for proper SPA routing.
 
