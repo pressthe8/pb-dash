@@ -78,6 +78,12 @@ interface SlackNotificationResponse {
   success: boolean;
 }
 
+interface Concept2ConnectionStatus {
+  connected: boolean;
+  reconnectRequired: boolean;
+  lastSyncAt: string | null;
+}
+
 export class CloudFunctionsService {
   private static instance: CloudFunctionsService;
   
@@ -94,6 +100,9 @@ export class CloudFunctionsService {
    * Enhanced error handling for Cloud Function calls
    */
   private handleCloudFunctionError(error: any, functionName: string): never {
+    if (error?.details?.reason === 'REAUTH_REQUIRED') {
+      throw new Error('REAUTH_REQUIRED');
+    }
     console.error(`Cloud Function ${functionName} failed:`, {
       error,
       errorMessage: error?.message,
@@ -133,6 +142,25 @@ export class CloudFunctionsService {
 
     // Re-throw the original error if it doesn't match specific conditions
     throw error;
+  }
+
+  async beginConcept2Connection(redirectUri: string) {
+    const begin = httpsCallable<{ redirectUri: string }, { state: string; authorizationUrl: string }>(
+      functions, 'beginConcept2Connection'
+    );
+    return (await begin({ redirectUri })).data;
+  }
+
+  async completeConcept2Connection(code: string, state: string): Promise<void> {
+    await httpsCallable<{ code: string; state: string }>(functions, 'completeConcept2Connection')({ code, state });
+  }
+
+  async getConcept2Connection(): Promise<Concept2ConnectionStatus> {
+    return (await httpsCallable<void, Concept2ConnectionStatus>(functions, 'getConcept2Connection')()).data;
+  }
+
+  async disconnectConcept2(): Promise<void> {
+    await httpsCallable(functions, 'disconnectConcept2')();
   }
 
   /**

@@ -1,15 +1,12 @@
-import { onCall } from 'firebase-functions/v2/https';
-import { defineSecret } from 'firebase-functions/params';
+import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
-import { Concept2ApiService } from './concept2ApiService';
-import { OAuthTokens, Concept2Result } from './types';
+import { FieldValue } from 'firebase-admin/firestore';
+import { Concept2ApiService, concept2Secrets } from './concept2ApiService';
+import { getConcept2Tokens, refreshConcept2Tokens, updateLastSyncTimestamp } from './concept2Tokens';
+import { Concept2Result } from './types';
 import { calculatePaceFor500m } from './paceCalculation';
 
 const db = admin.firestore();
-
-// Define secrets for this function
-const concept2ClientId = defineSecret('CONCEPT2_CLIENT_ID');
-const concept2ClientSecret = defineSecret('CONCEPT2_CLIENT_SECRET');
 
 interface InitialDataLoadRequest {
   userId: string;
@@ -24,31 +21,13 @@ interface InitialDataLoadResponse {
 
 export const initialDataLoad = onCall<InitialDataLoadRequest>(
   {
-    // CRITICAL: Declare the secrets this function uses
-    secrets: [concept2ClientId, concept2ClientSecret]
+    secrets: concept2Secrets
   },
   async (request): Promise<InitialDataLoadResponse> => {
-    // Enhanced authentication verification
-    console.log('Authentication context:', {
-      hasAuth: !!request.auth,
-      authUid: request.auth?.uid,
-      authToken: request.auth?.token ? 'present' : 'missing'
-    });
-
-    if (!request.auth || !request.auth.uid) {
-      console.error('Authentication failed - no auth context or uid');
-      throw new Error('User must be authenticated');
-    }
-
-    const { userId } = request.data;
-    
-    // Verify user can only sync their own data
-    if (request.auth.uid !== userId) {
-      console.error('Permission denied - auth uid does not match requested userId', {
-        authUid: request.auth.uid,
-        requestedUserId: userId
-      });
-      throw new Error('User can only sync their own data');
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in to PB Dash first.');
+    const userId = request.auth.uid;
+    if (request.data?.userId !== userId) {
+      throw new HttpsError('permission-denied', 'You can only sync your own workouts.');
     }
 
     try {
@@ -57,24 +36,14 @@ export const initialDataLoad = onCall<InitialDataLoadRequest>(
       // STEP 1: Initialize user PR types from template
       await initializeUserPRTypes(userId);
       
-      // Get user tokens
-      const tokens = await getUserTokens(userId);
-      if (!tokens) {
-        throw new Error('No Concept2 tokens found for user');
-      }
-
-      // Initialize Concept2 API service
+      const tokens = await getConcept2Tokens(userId);
       const concept2Api = new Concept2ApiService();
-      
-      // Token refresh callback
-      const onTokenRefresh = async (newTokens: OAuthTokens) => {
-        await updateUserTokens(userId, newTokens);
-      };
+      const refresh = (previous: typeof tokens) => refreshConcept2Tokens(userId, previous, concept2Api);
 
       console.log('Fetching ALL historical results from Concept2 API');
       
       // Fetch ALL results from Concept2 API (no updated_after parameter)
-      const apiResponse = await concept2Api.fetchAllResults(tokens, onTokenRefresh);
+      const apiResponse = await concept2Api.fetchAllResults(tokens, refresh);
       console.log(`Fetched ${apiResponse.data.length} total results from Concept2 API`);
 
       // Store results in user subcollection (FAST - no PR processing)
@@ -97,16 +66,9 @@ export const initialDataLoad = onCall<InitialDataLoadRequest>(
       };
 
     } catch (error) {
-      console.error('Initial data load failed:', error);
-      
-      if (error instanceof Error) {
-        if (error.message === 'REAUTH_REQUIRED') {
-          await deleteUserTokens(userId);
-          throw new Error('Concept2 re-authentication required');
-        }
-      }
-      
-      throw new Error(`Initial data load failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      if (error instanceof HttpsError) throw error;
+      console.error('Concept2 sync failed:', error);
+      throw new HttpsError('internal', 'Workout sync failed. Please try again.');
     }
   }
 );
@@ -142,8 +104,8 @@ async function initializeUserPRTypes(userId: string): Promise<void> {
       
       batch.set(userPRTypeRef, {
         ...templateData,
-        created_at: admin.firestore.FieldValue.serverTimestamp(),
-        updated_at: admin.firestore.FieldValue.serverTimestamp()
+        created_at: FieldValue.serverTimestamp(),
+        updated_at: FieldValue.serverTimestamp()
       });
       
       copiedCount++;
@@ -201,8 +163,8 @@ async function storeResultsOnly(userId: string, results: Concept2Result[]): Prom
         firebase_user_id: userId,
         raw_data: result,
         pace_per_500m: paceFor500m,
-        created_at: admin.firestore.FieldValue.serverTimestamp(),
-        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        created_at: FieldValue.serverTimestamp(),
+        updated_at: FieldValue.serverTimestamp(),
       }, { merge: true });
       
       totalStored++;
@@ -213,65 +175,6 @@ async function storeResultsOnly(userId: string, results: Concept2Result[]): Prom
   }
 
   return totalStored;
-}
-
-// Shared helper functions
-async function getUserTokens(userId: string): Promise<OAuthTokens | null> {
-  try {
-    const docId = `user_${userId}`;
-    const tokenDoc = await db.collection('user_tokens').doc(docId).get();
-    
-    if (!tokenDoc.exists) {
-      return null;
-    }
-    
-    const tokenData = tokenDoc.data();
-    if (!tokenData || tokenData.deleted_at) {
-      return null;
-    }
-    
-    return {
-      access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token,
-      expires_in: tokenData.expires_in,
-      token_type: tokenData.token_type,
-      scope: tokenData.scope,
-      created_at: tokenData.created_at,
-      last_sync_at: tokenData.last_sync_at || null,
-    };
-  } catch (error) {
-    console.error('Error getting user tokens:', error);
-    return null;
-  }
-}
-
-async function updateUserTokens(userId: string, tokens: OAuthTokens): Promise<void> {
-  const docId = `user_${userId}`;
-  await db.collection('user_tokens').doc(docId).update({
-    access_token: tokens.access_token,
-    refresh_token: tokens.refresh_token,
-    expires_in: tokens.expires_in,
-    token_type: tokens.token_type,
-    scope: tokens.scope,
-    created_at: tokens.created_at,
-    updated_at: admin.firestore.FieldValue.serverTimestamp(),
-  });
-}
-
-async function updateLastSyncTimestamp(userId: string, lastSyncAt: string): Promise<void> {
-  const docId = `user_${userId}`;
-  await db.collection('user_tokens').doc(docId).update({
-    last_sync_at: lastSyncAt,
-    updated_at: admin.firestore.FieldValue.serverTimestamp(),
-  });
-}
-
-async function deleteUserTokens(userId: string): Promise<void> {
-  const docId = `user_${userId}`;
-  await db.collection('user_tokens').doc(docId).update({
-    deleted_at: admin.firestore.FieldValue.serverTimestamp(),
-    updated_at: admin.firestore.FieldValue.serverTimestamp(),
-  });
 }
 
 async function getTotalResultsCount(userId: string): Promise<number> {

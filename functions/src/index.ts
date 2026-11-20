@@ -4,6 +4,7 @@ import * as admin from 'firebase-admin';
 admin.initializeApp();
 
 // Import and export all Cloud Functions (v2)
+export { beginConcept2Connection, completeConcept2Connection, getConcept2Connection, disconnectConcept2 } from './concept2Connection';
 export { initialDataLoad as initialDataLoadFunction } from './initialDataLoad';
 export { incrementalSync as incrementalSyncFunction } from './incrementalSync';
 export { processAllResultsForPRs } from './processAllResultsForPRs';

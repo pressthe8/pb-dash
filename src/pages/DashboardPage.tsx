@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useAuth } from '../hooks/useAuth';
 import { auth } from '../config/firebase';
 import { usePersonalRecords } from '../hooks/usePersonalRecords';
-import { Concept2ApiService } from '../services/concept2Api';
 import { FirebaseService } from '../services/firebaseService';
 import { CloudFunctionsService } from '../services/cloudFunctions';
 import { DataCacheService } from '../services/dataCacheService';
@@ -25,7 +24,6 @@ export const DashboardPage: React.FC = () => {
   const { 
     user, 
     concept2Connected, 
-    checkConcept2Connection, 
     clearConcept2Connection,
     connectionExpired,
     clearConnectionExpired,
@@ -51,7 +49,8 @@ export const DashboardPage: React.FC = () => {
   // DEV ONLY: Toggle between old and new PB views
   const [useNewTableView, setUseNewTableView] = useState(true);
 
-  const concept2Api = Concept2ApiService.getInstance();
+  const [connecting, setConnecting] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const firebaseService = FirebaseService.getInstance();
   const cloudFunctions = CloudFunctionsService.getInstance();
   const cacheService = DataCacheService.getInstance();
@@ -217,18 +216,18 @@ export const DashboardPage: React.FC = () => {
     }
   }, [user?.uid, cacheService]);
 
-  const handleConnectConcept2 = () => {
-    console.log('Starting Concept2 OAuth flow');
-    // Clear the connection expired flag when user initiates reconnection
-    clearConnectionExpired();
-    
+  const handleConnectConcept2 = async () => {
+    setConnecting(true);
+    setConnectionError(null);
     try {
-      const authUrl = concept2Api.generateAuthUrl();
-      console.log('Generated OAuth URL, redirecting to Concept2');
-      window.location.href = authUrl;
+      const redirectUri = window.location.origin + '/auth/callback';
+      const attempt = await cloudFunctions.beginConcept2Connection(redirectUri);
+      sessionStorage.setItem('concept2_oauth_state', attempt.state);
+      clearConnectionExpired();
+      window.location.assign(attempt.authorizationUrl);
     } catch (error) {
-      console.error('Error generating OAuth URL:', error);
-      // Don't show technical error to user
+      setConnectionError(error instanceof Error ? error.message : 'Unable to connect to Concept2.');
+      setConnecting(false);
     }
   };
 
@@ -284,15 +283,18 @@ export const DashboardPage: React.FC = () => {
           
           <button
             onClick={handleConnectConcept2}
+            disabled={connecting}
             className="bg-gradient-to-r from-blue-500 to-teal-500 text-white font-semibold 
                      py-3 px-8 rounded-xl hover:from-blue-600 hover:to-teal-600 
                      transition-all duration-200 transform hover:scale-105
                      flex items-center space-x-3 mx-auto"
           >
             <Link className="w-5 h-5" />
-            <span>{connectionExpired ? 'Reconnect to Concept2' : 'Connect to Concept2'}</span>
+            <span>{connecting ? 'Connecting…' : connectionExpired ? 'Reconnect to Concept2' : 'Connect to Concept2'}</span>
           </button>
           
+          {connectionError && <p role="alert" className="mt-4 text-sm text-red-700">{connectionError}</p>}
+
           <p className="text-sm text-slate-500 mt-4">
             You'll be redirected to Concept2 to authorize the connection.
           </p>

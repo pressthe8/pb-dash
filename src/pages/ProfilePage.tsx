@@ -97,13 +97,13 @@ export const ProfilePage: React.FC = () => {
       
       // Load user profile
       const userProfile = await firebaseService.getUserProfile(user.uid);
+      if (!userProfile) return;
       console.log('Loaded user profile:', userProfile);
       
-      // Load last sync timestamp from tokens and combine with profile
-      const tokens = await firebaseService.getTokens(user.uid);
+      const connection = await cloudFunctions.getConcept2Connection();
       const extendedProfile: ExtendedUserProfile = {
         ...userProfile,
-        last_sync_at: tokens?.last_sync_at || null
+        last_sync_at: connection.lastSyncAt ?? undefined
       };
       
       setProfile(extendedProfile);
@@ -274,7 +274,7 @@ export const ProfilePage: React.FC = () => {
     if (!user) return;
     
     try {
-      clearConcept2Connection();
+      await clearConcept2Connection();
       setShowDisconnectConfirm(false);
       
       // Reason: Clear all cache when disconnecting

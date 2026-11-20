@@ -59,7 +59,10 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
       const tokenDocRef = db.collection('user_tokens').doc(tokenDocId);
       
       try {
-        await tokenDocRef.delete();
+        const batch = db.batch();
+        batch.delete(tokenDocRef);
+        batch.delete(db.collection('concept2_oauth_states').doc(userId));
+        await batch.commit();
         deletedCollections.push('user_tokens');
         totalDeletedDocuments += 1;
         console.log('User tokens deleted successfully');

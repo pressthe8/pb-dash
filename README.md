@@ -46,9 +46,9 @@ A modern, responsive web application that connects to your Concept2 Logbook acco
    - Register your application at [Concept2 Developer Portal](https://log.concept2.com/developers)
    - Obtain your Client ID and Client Secret
    - **CRITICAL**: Set your redirect URI to match your environment:
-     - Development: `https://localhost:5173/auth/callback`
-     - WebContainer: `https://[your-webcontainer-url]/auth/callback`
-     - Production: `https://your-domain.com/auth/callback`
+     - Local development: `http://localhost:5173/auth/callback`
+     - Netlify dev branch: `https://dev--pb-dash.netlify.app/auth/callback`
+     - Production: `https://pbdash.pressthe8.com/auth/callback`
 
 ### Installation
 
@@ -80,13 +80,9 @@ A modern, responsive web application that connects to your Concept2 Logbook acco
    VITE_FIREBASE_STORAGE_BUCKET=your_project_id.appspot.com
    VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
    VITE_FIREBASE_APP_ID=your_app_id
-
-   # Concept2 API Configuration
-   VITE_CONCEPT2_CLIENT_ID=your_concept2_client_id
-   VITE_CONCEPT2_CLIENT_SECRET=your_concept2_client_secret
    ```
 
-   **⚠️ IMPORTANT**: Make sure your Concept2 credentials are correct and the redirect URI in your Concept2 Developer Portal matches exactly your current environment URL.
+   Use the public Firebase web config for your target project. Concept2 credentials belong in Secret Manager.
 
 4. **Configure Firebase Cloud Functions**
 
@@ -148,122 +144,9 @@ The app will automatically create the following collections:
 - `users/{userId}/pr_types` - Stores personal record types (subcollection)
 - `users/{userId}/pr_events` - Stores personal record events (subcollection)
 
-#### 4. Firestore Security Rules
+#### 4. Firestore rules and indexes
 
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    // Users can only access their own tokens
-    match /user_tokens/{document} {
-      allow read, write: if request.auth != null && 
-        (resource == null || resource.data.firebase_user_id == request.auth.uid);
-    }
-    
-    // Users can only access their own data in subcollections
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-  }
-}
-```
-
-#### 5. Create Required Firestore Indexes
-
-**🚨 CRITICAL STEP**: You MUST create these indexes manually in your Firebase Console before the OAuth flow will work. Without these indexes, you'll get "internal" errors during the callback process.
-
-**Step-by-step instructions:**
-
-1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Select your project
-3. Navigate to **Firestore Database**
-4. Click on the **"Indexes"** tab
-
-**Create Single-Field Indexes:**
-
-1. Click on the **"Single field"** tab
-2. For each index below, click **"Create Index"**:
-
-   **Index 1: user_tokens collection**
-   - Collection ID: `user_tokens`
-   - Field path: `firebase_user_id`
-   - Query scopes: Collection
-   - Click **"Create"**
-
-   **Index 2: results subcollection**
-   - Collection ID: `results`
-   - Field path: `date`
-   - Query scopes: Collection group
-   - Click **"Create"**
-
-   **Index 3: pr_types subcollection**
-   - Collection ID: `pr_types`
-   - Field path: `is_active`
-   - Query scopes: Collection group
-   - Click **"Create"**
-
-   **Index 4: pr_types subcollection (display_order)**
-   - Collection ID: `pr_types`
-   - Field path: `display_order`
-   - Query scopes: Collection group
-   - Click **"Create"**
-
-   **Index 5: pr_events subcollection**
-   - Collection ID: `pr_events`
-   - Field path: `activity_key`
-   - Query scopes: Collection group
-   - Click **"Create"**
-
-   **Index 6: pr_events subcollection (achieved_at)**
-   - Collection ID: `pr_events`
-   - Field path: `achieved_at`
-   - Query scopes: Collection group
-   - Click **"Create"**
-
-**Create Composite Indexes:**
-
-1. Click on the **"Composite"** tab
-2. For each composite index below, click **"Create Index"**:
-
-   **Composite Index 1: pr_types subcollection**
-   - Collection ID: `pr_types`
-   - Add field: `is_active` (Ascending)
-   - Add field: `display_order` (Ascending)
-   - Query scopes: Collection group
-   - Click **"Create"**
-
-   **Composite Index 2: pr_events subcollection**
-   - Collection ID: `pr_events`
-   - Add field: `activity_key` (Ascending)
-   - Add field: `achieved_at` (Ascending)
-   - Query scopes: Collection group
-   - Click **"Create"**
-
-**Important Notes:**
-- **Collection group indexes** are required for subcollections (`results`, `pr_types`, `pr_events`)
-- **Collection indexes** are for top-level collections (`user_tokens`)
-- Indexes can take 5-10 minutes to build after creation
-- You must wait for all indexes to finish building before the OAuth flow will work
-
-**Alternative Method:**
-If you can't find the index creation options:
-1. Try running the OAuth flow (it will fail with "internal" error)
-2. Check the Firebase Console logs for specific index creation links
-3. Click those links to auto-create the required indexes
-4. Then manually create any remaining indexes as described above
-
-**Expected Result:**
-After setup, you should see these indexes:
-- **Single field tab**: 
-  - `user_tokens.firebase_user_id` (Collection)
-  - `results.date` (Collection group)
-  - `pr_types.is_active` (Collection group)
-  - `pr_types.display_order` (Collection group)
-  - `pr_events.activity_key` (Collection group)
-  - `pr_events.achieved_at` (Collection group)
-- **Composite tab**: 
-  - `pr_types` with `is_active` + `display_order` (Collection group)
-  - `pr_events` with `activity_key` + `achieved_at` (Collection group)
+The rules and index definitions are checked in as `firestore.rules` and `firestore.indexes.json`. Token and OAuth state documents are accessible only to the backend. Signed-in users can read their own workouts and PBs and update their own profile.
 
 ## Troubleshooting
 
@@ -286,7 +169,7 @@ This error occurs when your development domain is not authorized in Firebase:
 
 2. **For Local Development**:
    - Add `localhost:5173` to Firebase authorized domains
-   - Make sure you're using `https://localhost:5173` (not `http://`)
+   - Use the registered `http://localhost:5173/auth/callback` for local Concept2 sign-in.
 
 3. **Common WebContainer Domain Patterns**:
    - `[random-id]-5173.preview.webcontainer.io`
@@ -299,61 +182,12 @@ This error occurs when your development domain is not authorized in Firebase:
    - The domain must match exactly (case-sensitive)
    - Don't include `https://` or port numbers in the authorized domain
 
-### OAuth Callback "Internal" Errors
+### Concept2 OAuth and Firestore errors
 
-If you see "Callback handling failed: internal" during the OAuth flow:
-
-1. **Missing Firestore Indexes** (MOST COMMON):
-   - This error typically means required Firestore indexes are missing
-   - Follow the "Create Required Firestore Indexes" section above carefully
-   - Ensure you create **Collection group** indexes for subcollections
-   - Wait 5-10 minutes for indexes to build after creation
-
-2. **Check Firebase Functions Logs**:
-   - Go to Firebase Console → Functions → Logs
-   - Look for specific error messages about missing indexes
-   - Use the provided links to create missing indexes automatically
-
-3. **Verify Index Types**:
-   - `user_tokens` indexes should be **Collection** scope
-   - `results`, `pr_types`, `pr_events` indexes should be **Collection group** scope
-   - This is critical for the subcollection structure to work
-
-### OAuth Token Exchange Errors
-
-If you see "Token exchange failed" with an HTML error page:
-
-1. **Check Concept2 Credentials**:
-   - Verify `VITE_CONCEPT2_CLIENT_ID` and `VITE_CONCEPT2_CLIENT_SECRET` are correct
-   - These should be from your Concept2 Developer Portal
-
-2. **Check Redirect URI**:
-   - In your Concept2 Developer Portal, ensure the redirect URI matches your current environment
-   - WebContainer: `https://abc123-5173.preview.webcontainer.io/auth/callback`
-   - Local: `https://localhost:5173/auth/callback`
-
-3. **Environment Variables**:
-   - Restart your dev server after changing `.env` file
-   - Ensure no extra spaces or quotes around the values
-
-### Firestore Permission Errors
-
-If you see "Missing or insufficient permissions":
-
-1. **Create Required Indexes** (see Firebase Setup section above)
-2. **Check Firestore Rules** are properly configured for subcollections
-3. **Verify Authentication** is working (user should be signed in with Google)
-4. **Wait for Index Building** - indexes can take 5-10 minutes to become active
-
-### Common Issues
-
-- **CORS Errors**: Make sure you're using `https://` (not `http://`)
-- **State Parameter Errors**: Clear browser cache and localStorage
-- **Index Creation**: Indexes can take a few minutes to build after creation
-- **Domain Authorization**: Always add your exact development URL to Firebase authorized domains
-- **WebContainer URLs**: Remember that WebContainer URLs change between sessions
-- **Subcollection Indexes**: Make sure to use "Collection group" scope for subcollection indexes
-- **Cloud Functions Configuration**: Ensure Concept2 API credentials are set for Functions
+- Confirm the app is using the intended Firebase project and that project's Functions and rules are deployed.
+- Check the Concept2 app registration for the exact callback shown in the prerequisites.
+- For a token exchange failure, check the Functions logs and the target project's Secret Manager configuration.
+- For Firestore query failures, check the Functions logs and the deployed indexes for the affected project.
 
 ## Deployment
 
@@ -373,6 +207,14 @@ Use the development target for Firebase deployment testing:
 ```bash
 firebase deploy --only functions --project bolt-c2
 ```
+
+For the server-side OAuth cutover on dev, deploy Functions first. Remove the legacy Concept2 variables from the Netlify dev build and publish the matching frontend. Once it uses the new callables, apply the rules and indexes:
+
+```bash
+firebase deploy --only firestore:rules,firestore:indexes --project bolt-c2
+```
+
+Existing users can keep their saved connections until Concept2 rejects their refresh token or the app credentials change. Rotate the old dev client secret in Concept2 after the frontend no longer needs it, update Secret Manager, and redeploy the Functions that use it.
 
 Run the production deployment separately when ready:
 
@@ -402,12 +244,10 @@ Ensure all environment variables are set in your Netlify dashboard:
 - `VITE_FIREBASE_STORAGE_BUCKET`
 - `VITE_FIREBASE_MESSAGING_SENDER_ID`
 - `VITE_FIREBASE_APP_ID`
-- `VITE_CONCEPT2_CLIENT_ID`
-- `VITE_CONCEPT2_CLIENT_SECRET`
 
 **Important**: 
 - Update your Firebase authorized domains to include your production domain: `your-domain.com`
-- Update your Concept2 Developer Portal redirect URI to your production domain: `https://your-domain.com/auth/callback`
+- Confirm `https://pbdash.pressthe8.com/auth/callback` is registered in the Concept2 Developer Portal.
 - Ensure Firebase Functions have the Concept2 credentials configured in production
 
 ## Usage

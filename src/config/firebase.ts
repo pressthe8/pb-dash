@@ -4,22 +4,6 @@ import { getAuth } from 'firebase/auth';
 import { getFunctions } from 'firebase/functions';
 import { getStorage } from 'firebase/storage';
 
-// Validate that all required environment variables are present
-const requiredEnvVars = [
-  'VITE_FIREBASE_API_KEY',
-  'VITE_FIREBASE_AUTH_DOMAIN',
-  'VITE_FIREBASE_PROJECT_ID',
-  'VITE_FIREBASE_STORAGE_BUCKET',
-  'VITE_FIREBASE_MESSAGING_SENDER_ID',
-  'VITE_FIREBASE_APP_ID'
-];
-
-const missingVars = requiredEnvVars.filter(varName => !import.meta.env[varName]);
-
-if (missingVars.length > 0) {
-  throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
-}
-
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -28,6 +12,12 @@ const firebaseConfig = {
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
+
+// Read only the Firebase settings above so Vite need not bundle the entire environment.
+const missingSettings = Object.entries(firebaseConfig).filter(([, value]) => !value).map(([key]) => key);
+if (missingSettings.length > 0) {
+  throw new Error(`Missing Firebase configuration: ${missingSettings.join(', ')}`);
+}
 
 // Validate that environment variables don't contain placeholder values
 const placeholderPatterns = [
