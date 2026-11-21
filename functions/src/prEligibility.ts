@@ -1,4 +1,5 @@
 import { Concept2Result } from './types';
+import { normalizeWorkoutSport } from './workoutSport';
 
 export interface PRMatchTarget {
   sport: string;
@@ -8,7 +9,7 @@ export interface PRMatchTarget {
 }
 
 export function matchesPRType(result: Concept2Result, target: PRMatchTarget): boolean {
-  if (result.type !== target.sport) return false;
+  if (normalizeWorkoutSport(result.type) !== normalizeWorkoutSport(target.sport)) return false;
 
   // Concept2 separates continuous splits from workouts with explicit work and rest intervals.
   if ((typeof result.workout_type === 'string' && /interval/i.test(result.workout_type)) ||

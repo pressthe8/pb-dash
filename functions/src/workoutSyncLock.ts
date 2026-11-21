@@ -4,7 +4,7 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { requireActiveAccount } from './accountDeletionState';
 export const workoutSyncTimeoutSeconds = 120;
 // Keep the existing Firestore field as a version for both eligibility and scope rules.
-export const PR_CALCULATION_VERSION = 2;
+export const PR_CALCULATION_VERSION = 3;
 
 export interface WorkoutSyncState {
   cursorAt?: string;
