@@ -5,6 +5,8 @@ import { CallableRequest, HttpsError, onCall } from 'firebase-functions/v2/https
 import { requireActiveAccount } from './accountDeletionState';
 import { Concept2ApiService, concept2AuthorizationUrl, concept2ClientId, concept2Secrets } from './concept2ApiService';
 import { concept2TokenRef } from './concept2Tokens';
+import { postSlackActivity, slackStateRef, slackWebhookUrl } from './slackNotifications';
+import { workoutSyncRef } from './workoutSyncLock';
 
 const db = admin.firestore();
 const callbackLifetimeMs = 10 * 60 * 1000;
@@ -41,7 +43,9 @@ export const beginConcept2Connection = onCall<{ redirectUri: string }>({ secrets
   return { state, authorizationUrl };
 });
 
-export const completeConcept2Connection = onCall<{ code: string; state: string }>({ secrets: concept2Secrets }, async (request) => {
+export const completeConcept2Connection = onCall<{ code: string; state: string }>({
+  secrets: [...concept2Secrets, slackWebhookUrl],
+}, async (request) => {
   const uid = uidFor(request);
   const { code, state } = request.data || {};
   if (typeof code !== 'string' || !code.trim() || code.length > 2048 ||
@@ -62,20 +66,34 @@ export const completeConcept2Connection = onCall<{ code: string; state: string }
   });
 
   const tokens = await new Concept2ApiService().exchangeCode(code, redirectUri);
-  await db.runTransaction(async (tx) => {
+  const tokenRef = concept2TokenRef(uid);
+  const slackRef = slackStateRef(uid);
+  const firstConnection = await db.runTransaction(async (tx) => {
     await requireActiveAccount(tx, uid);
     const current = (await tx.get(ref)).data();
     if (current?.state !== state) {
       throw new HttpsError('aborted', 'A newer Concept2 connection was started. Use that connection instead.');
     }
-    tx.set(concept2TokenRef(uid), {
+    const [activity, previousToken, sync, profile] = await tx.getAll(
+      slackRef, tokenRef, workoutSyncRef(uid), db.collection('users').doc(uid)
+    );
+    const alreadyConnected = Boolean(activity.get('concept2ConnectionSeen') || previousToken.exists ||
+      sync.get('cursorAt') || profile.get('user_id'));
+    tx.set(slackRef, { concept2ConnectionSeen: true }, { merge: true });
+    tx.set(tokenRef, {
       ...tokens,
       firebase_user_id: uid,
       last_sync_at: null,
       updated_at: FieldValue.serverTimestamp(),
     });
     tx.delete(ref);
+    return !alreadyConnected;
   });
+  if (firstConnection) {
+    await postSlackActivity({
+      type: 'concept2_connected', uid, signInProvider: request.auth?.token.firebase?.sign_in_provider,
+    });
+  }
   return { connected: true };
 });
 

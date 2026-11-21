@@ -222,6 +222,8 @@ For account deletion, deploy the Firestore rules, Firestore index configuration 
 firebase deploy --only firestore:rules,firestore:indexes,storage --project bolt-c2
 ```
 
+Slack activity is sent by `completeConcept2Connection` and `uploadPbGridFunction` using the target project's `SLACK_WEBHOOK_URL` secret. Retire the old `sendSlackNotification` callable as part of the cutover so older frontend builds cannot send a second notification.
+
 Run the production deployment separately when ready:
 
 ```bash

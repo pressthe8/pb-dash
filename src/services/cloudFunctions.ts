@@ -1,6 +1,6 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../config/firebase';
-import { SlackNotificationPayload } from '../../functions/src/types';
+import type { SportType } from '../types/personalRecords';
 
 // Types for Cloud Function requests/responses
 interface SyncRequest {
@@ -57,16 +57,13 @@ interface ProcessNewResultsAndRecalculateResponse {
 interface UploadPbGridRequest {
   userId: string;
   imageData: string;
+  sport: SportType;
 }
 
 interface UploadPbGridResponse {
   success: boolean;
   imageUrl: string;
   message?: string;
-}
-
-interface SlackNotificationResponse {
-  success: boolean;
 }
 
 interface Concept2ConnectionStatus {
@@ -318,7 +315,7 @@ export class CloudFunctionsService {
   /**
    * Upload PB grid image to Firebase Storage with rate limiting
    */
-  async uploadPbGrid(userId: string, imageData: string): Promise<UploadPbGridResponse> {
+  async uploadPbGrid(userId: string, imageData: string, sport: SportType): Promise<UploadPbGridResponse> {
     const functionName = 'uploadPbGridFunction';
     
     try {
@@ -327,7 +324,7 @@ export class CloudFunctionsService {
       // Use Firebase SDK's httpsCallable which automatically handles authentication
       const uploadFunction = httpsCallable<UploadPbGridRequest, UploadPbGridResponse>(functions, functionName);
       
-      const result = await uploadFunction({ userId, imageData });
+      const result = await uploadFunction({ userId, imageData, sport });
       
       console.log(`${functionName} completed:`, result.data);
       return result.data;
@@ -335,30 +332,6 @@ export class CloudFunctionsService {
       if ((error as { code?: string })?.code === 'functions/resource-exhausted') throw error;
       console.error(`${functionName} failed:`, error);
       this.handleCloudFunctionError(error, functionName);
-    }
-  }
-
-  /**
-   * Send a Slack notification via Cloud Function
-   */
-  async sendSlackNotification(payload: SlackNotificationPayload): Promise<SlackNotificationResponse> {
-    const functionName = 'sendSlackNotification';
-    
-    try {
-      console.log(`Triggering ${functionName} with payload:`, payload);
-      
-      // Use Firebase SDK's httpsCallable which automatically handles authentication
-      const slackFunction = httpsCallable<SlackNotificationPayload, SlackNotificationResponse>(functions, functionName);
-      
-      const result = await slackFunction(payload);
-      
-      console.log(`${functionName} completed:`, result.data);
-      return result.data;
-    } catch (error) {
-      console.error(`${functionName} failed:`, error);
-      // Don't use handleCloudFunctionError here since Slack failures shouldn't block user flow
-      console.warn('Slack notification failed but continuing with user flow');
-      return { success: false };
     }
   }
 
