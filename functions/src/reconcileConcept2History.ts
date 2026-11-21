@@ -7,7 +7,7 @@ import { concept2TokenRef, getConcept2Tokens, refreshConcept2Tokens } from './co
 import { rebuildPersonalBests } from './processAllResultsForPRs';
 import { Concept2Result } from './types';
 import { validResult, workoutBatchSize, workoutCollection, workoutData } from './workoutStorage';
-import { withWorkoutSyncLock, workoutSyncTimeoutSeconds, WorkoutSyncLock } from './workoutSyncLock';
+import { needsPRRebuild, withWorkoutSyncLock, workoutSyncTimeoutSeconds, WorkoutSyncLock } from './workoutSyncLock';
 
 export const reconcileConcept2History = onCall({ secrets: concept2Secrets, timeoutSeconds: workoutSyncTimeoutSeconds }, async request => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in to PB Dash first.');
@@ -91,7 +91,7 @@ export const reconcileConcept2History = onCall({ secrets: concept2Secrets, timeo
       });
     }
 
-    const rebuilt = Boolean(changes.length || lock.state.prRepairPending || lock.state.prAppendPending || lock.state.prAppendStarted);
+    const rebuilt = changes.length > 0 || needsPRRebuild(lock.state) || Boolean(lock.state.prAppendPending);
     if (rebuilt) await rebuildPersonalBests(uid, guardedLock);
     const lastSyncAt = new Date().toISOString();
     await guardedLock.write(tx => {

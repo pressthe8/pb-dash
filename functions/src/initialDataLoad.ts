@@ -4,7 +4,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { Concept2ApiService, concept2Secrets } from './concept2ApiService';
 import { concept2TokenRef, getConcept2Tokens, refreshConcept2Tokens } from './concept2Tokens';
 import { countWorkouts, saveNewWorkouts } from './workoutStorage';
-import { withWorkoutSyncLock, workoutSyncTimeoutSeconds } from './workoutSyncLock';
+import { needsPRRebuild, withWorkoutSyncLock, workoutSyncTimeoutSeconds } from './workoutSyncLock';
 
 const db = admin.firestore();
 
@@ -45,7 +45,7 @@ export const initialDataLoad = onCall<{ userId: string }>(
       console.log(`Initial data load completed: ${newResultIds.length} new results, ${totalResultsCount} total`);
       return {
         success: true, newResultsCount: newResultIds.length, totalResultsCount, lastSyncAt,
-        prRepairPending: Boolean(lock.state.prRepairPending || lock.state.prAppendPending || lock.state.prAppendStarted),
+        prRepairPending: needsPRRebuild(lock.state) || Boolean(lock.state.prAppendPending),
       };
     });
   }

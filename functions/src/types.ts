@@ -20,6 +20,9 @@ export interface Concept2Result {
   time: number;
   time_formatted: string;
   workout_type: string;
+  rest_time?: number | null;
+  rest_distance?: number | null;
+  workout?: { intervals?: unknown[] } | null;
   source: string;
   weight_class: string;
   verified: boolean;

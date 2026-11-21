@@ -3,8 +3,9 @@ import { FieldValue } from 'firebase-admin/firestore';
 import * as admin from 'firebase-admin';
 import { Concept2Result } from './types';
 import { calculatePaceFor500m } from './paceCalculation';
+import { matchesPRType } from './prEligibility';
 import { rebuildPersonalBests } from './processAllResultsForPRs';
-import { withWorkoutSyncLock, workoutSyncTimeoutSeconds } from './workoutSyncLock';
+import { needsPRRebuild, withWorkoutSyncLock, workoutSyncTimeoutSeconds } from './workoutSyncLock';
 
 const db = admin.firestore();
 
@@ -29,7 +30,7 @@ export const processNewResultsAndRecalculate = onCall<ProcessNewResultsAndRecalc
     }
 
     return withWorkoutSyncLock(userId, async lock => {
-      if (lock.state.prRepairPending || lock.state.prAppendStarted) {
+      if (needsPRRebuild(lock.state)) {
         const result = await rebuildPersonalBests(userId, lock);
         await lock.write(tx => { tx.update(lock.ref, { prRepairPending: false, prAppendPending: false, prAppendStarted: false }); });
         return result;
@@ -355,26 +356,6 @@ async function assignScopesForActivity(userId: string, activityKey: string, even
     console.error(`Error assigning scopes for activity ${activityKey}:`, error);
     throw error;
   }
-}
-
-// Helper functions
-function matchesPRType(result: Concept2Result, prType: any): boolean {
-  // Must match sport type
-  if (result.type !== prType.sport) {
-    return false;
-  }
-
-  // Time-based PR: exact distance match
-  if (prType.metric_type === "time" && prType.target_distance !== null) {
-    return result.distance === prType.target_distance;
-  }
-
-  // Distance-based PR: exact time match
-  if (prType.metric_type === "distance" && prType.target_time !== null) {
-    return result.time === prType.target_time;
-  }
-
-  return false;
 }
 
 function getMetricValue(result: Concept2Result, prType: any): number {

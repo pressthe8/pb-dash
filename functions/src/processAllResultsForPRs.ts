@@ -3,15 +3,12 @@ import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { Concept2Result } from './types';
 import { calculatePaceFor500m } from './paceCalculation';
+import { matchesPRType, PR_ELIGIBILITY_VERSION, PRMatchTarget } from './prEligibility';
 import { WorkoutSyncLock, withWorkoutSyncLock, workoutSyncTimeoutSeconds } from './workoutSyncLock';
 import { workoutBatchSize, workoutCollection } from './workoutStorage';
 
-interface PRType {
+interface PRType extends PRMatchTarget {
   activity_key: string;
-  sport: string;
-  metric_type: 'time' | 'distance';
-  target_distance?: number;
-  target_time?: number;
 }
 
 interface PRData {
@@ -65,9 +62,7 @@ export async function rebuildPersonalBests(uid: string, lock: WorkoutSyncLock) {
 
     const best = new Map<string, PRData>();
     for (const result of workouts) {
-      if (result.type !== type.sport || (type.metric_type === 'time'
-        ? result.distance !== type.target_distance
-        : result.time !== type.target_time)) continue;
+      if (!matchesPRType(result, type)) continue;
 
       const year = Number(result.date.slice(0, 4));
       const month = Number(result.date.slice(5, 7));
@@ -118,6 +113,8 @@ export async function rebuildPersonalBests(uid: string, lock: WorkoutSyncLock) {
       for (const doc of obsolete.slice(i, i + workoutBatchSize)) tx.delete(doc.ref);
     });
   }
+
+  await lock.write(tx => { tx.update(lock.ref, { prEligibilityVersion: PR_ELIGIBILITY_VERSION }); });
 
   return {
     success: true,

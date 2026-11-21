@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
+import { PR_ELIGIBILITY_VERSION } from './prEligibility';
 
 export const workoutSyncTimeoutSeconds = 120;
 
@@ -10,7 +11,12 @@ export interface WorkoutSyncState {
   prRepairPending?: boolean;
   prAppendPending?: boolean;
   prAppendStarted?: boolean;
+  prEligibilityVersion?: number;
   lease?: { id: string; expiresAt: number };
+}
+
+export function needsPRRebuild(state: WorkoutSyncState): boolean {
+  return Boolean(state.prRepairPending || state.prAppendStarted || state.prEligibilityVersion !== PR_ELIGIBILITY_VERSION);
 }
 
 export interface WorkoutSyncLock {
