@@ -256,7 +256,7 @@ Ensure all environment variables are set in your Netlify dashboard:
 2. **Sign in** using Google authentication
 3. **Connect your Concept2 account** via OAuth
 4. **View your dashboard** with imported workout data
-5. **Sync New Data** adds workouts the app hasn't imported yet. In Profile, select **Reconcile history** after editing or deleting a workout in Concept2. **Recalculate All PRs** rebuilds personal bests from the workouts already stored in PB Dash.
+5. **Sync New Data** adds workouts the app hasn't imported yet. In Profile → Workout data, select **Sync edits and deletions** after editing or deleting a workout in Concept2. **Recalculate All PRs** rebuilds personal bests from the workouts already stored in PB Dash.
 
 ## API Reference
 

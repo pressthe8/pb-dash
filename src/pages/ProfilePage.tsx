@@ -11,7 +11,8 @@ import { UserProfile, SportType, SPORT_MAPPING } from '../types/personalRecords'
 import { 
   User, 
   Calendar, 
-  RefreshCw, 
+  RefreshCw,
+  History,
   Trophy, 
   Eye, 
   EyeOff, 
@@ -28,6 +29,19 @@ import {
 // Extended profile interface that includes sync timestamp
 interface ExtendedUserProfile extends UserProfile {
   last_sync_at?: string;
+}
+
+type WorkoutAction = 'sync' | 'reconcile' | 'recalculate';
+
+interface WorkoutFeedback {
+  action: WorkoutAction;
+  title: string;
+  detail?: string;
+  error?: boolean;
+}
+
+function workoutCount(count: number) {
+  return count + (count === 1 ? ' workout' : ' workouts');
 }
 
 export const ProfilePage: React.FC = () => {
@@ -51,11 +65,8 @@ export const ProfilePage: React.FC = () => {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   
-  // New state for PR reprocessing
-  const [prReprocessing, setPrReprocessing] = useState(false);
-  const [prReprocessComplete, setPrReprocessComplete] = useState(false);
-  const [reconciling, setReconciling] = useState(false);
-  const [reconcileMessage, setReconcileMessage] = useState<{ text: string; error?: boolean } | null>(null);
+  const [activeWorkoutAction, setActiveWorkoutAction] = useState<WorkoutAction | null>(null);
+  const [workoutFeedback, setWorkoutFeedback] = useState<WorkoutFeedback | null>(null);
 
   // State for PR image generation
   const [selectedSport, setSelectedSport] = useState<SportType>('rower');
@@ -70,28 +81,17 @@ export const ProfilePage: React.FC = () => {
     loadPREvents();
   }, [user]);
 
-  // Clear PR reprocess completion status after 3 seconds
-  useEffect(() => {
-    if (prReprocessComplete) {
-      const timer = setTimeout(() => {
-        setPrReprocessComplete(false);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [prReprocessComplete]);
-
-  const loadProfile = async () => {
+  const loadProfile = async (showLoader = true) => {
     if (!user?.uid) return;
     
     try {
-      setLoading(true);
+      if (showLoader) setLoading(true);
       
       // Reason: Try to get cached profile first for instant response
       const cachedProfile = await cacheService.getCachedData<ExtendedUserProfile>(user.uid, 'userProfile');
       if (cachedProfile) {
         console.log('Using cached user profile with sync timestamp');
         setProfile(cachedProfile);
-        setLoading(false);
         return;
       }
       
@@ -122,7 +122,7 @@ export const ProfilePage: React.FC = () => {
     } catch (error) {
       console.error('Error loading profile:', error);
     } finally {
-      setLoading(false);
+      if (showLoader) setLoading(false);
     }
   };
 
@@ -227,72 +227,60 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
-  const handleSyncData = async () => {
-    if (!user || !concept2Connected) return;
-    
+  const workoutActionsDisabled = !concept2Connected || syncStatus !== 'idle' || activeWorkoutAction !== null;
+
+  const runWorkoutAction = async (
+    action: WorkoutAction,
+    failureTitle: string,
+    run: (uid: string) => Promise<Omit<WorkoutFeedback, 'action' | 'error'>>,
+  ) => {
+    if (!user || workoutActionsDisabled) return;
+
+    setActiveWorkoutAction(action);
+    setWorkoutFeedback(null);
     try {
-      await syncNewResults();
-      
-      // Reason: Invalidate relevant cache after sync
-      await cacheService.invalidateCache(user.uid, 'allResults');
-      await cacheService.invalidateCache(user.uid, 'dashboardStats');
-      
-      // Reload profile to get updated sync timestamp
-      await loadProfile();
-      await loadPREvents();
+      setWorkoutFeedback({ action, ...await run(user.uid) });
     } catch (error) {
-      console.error('Error syncing data:', error);
+      const detail = error instanceof Error ? error.message : 'Please try again.';
+      setWorkoutFeedback({
+        action,
+        title: failureTitle,
+        detail: detail === 'REAUTH_REQUIRED' ? 'Reconnect Concept2 and try again.' : detail,
+        error: true,
+      });
+    } finally {
+      setActiveWorkoutAction(null);
     }
   };
 
-  const handleReconcileHistory = async () => {
-    setReconciling(true);
-    setReconcileMessage(null);
-    try {
-      const result = await reconcileHistory();
-      const counts = [
-        result.addedCount ? 'Added ' + result.addedCount : '',
-        result.updatedCount ? 'updated ' + result.updatedCount : '',
-        result.removedCount ? 'removed ' + result.removedCount : '',
-      ].filter(Boolean);
-      const summary = counts.length ? counts.join(', ') + ' workout records.' : 'Workout history is up to date.';
-      setReconcileMessage({ text: summary + (result.rebuilt ? ' PBs recalculated.' : '') });
-      await Promise.all([loadProfile(), loadPREvents()]);
-    } catch (error) {
-      setReconcileMessage({ error: true, text: error instanceof Error && error.message !== 'REAUTH_REQUIRED'
-        ? error.message : 'Reconnect Concept2 and try again.' });
-    } finally {
-      setReconciling(false);
-    }
-  };
+  const handleSyncData = () => runWorkoutAction('sync', 'Couldn’t sync new workouts', async () => {
+    const count = await syncNewResults();
+    await Promise.all([loadProfile(false), loadPREvents()]);
+    return { title: count ? 'New workouts synced' : 'No new workouts', detail: count ? `Added ${workoutCount(count)}.` : undefined };
+  });
 
-  const handleRecalculatePRs = async () => {
-    if (!user) return;
-    
-    try {
-      setPrReprocessing(true);
-      setPrReprocessComplete(false);
-      
-      console.log('Starting PR recalculation via Cloud Function');
-      await cloudFunctions.processAllResultsForPRs(user.uid);
-      console.log('PR recalculation completed successfully');
-      
-      // Reason: Invalidate PR-related cache after recalculation
-      await cacheService.invalidateCache(user.uid, 'prStats');
-      await cacheService.invalidateCache(user.uid, 'prEvents');
-      
-      // Reload PR events for image generator
-      await loadPREvents();
-      
-      // Show completion status
-      setPrReprocessComplete(true);
-    } catch (error) {
-      console.error('Error recalculating PRs:', error);
-      // Could add error state here if needed
-    } finally {
-      setPrReprocessing(false);
-    }
-  };
+  const handleReconcileHistory = () => runWorkoutAction('reconcile', 'Couldn’t sync workout changes', async () => {
+    const result = await reconcileHistory();
+    await Promise.all([loadProfile(false), loadPREvents()]);
+    const { addedCount, updatedCount, removedCount, rebuilt } = result;
+    const detail = [
+      addedCount ? `Added ${workoutCount(addedCount)}.` : '',
+      updatedCount ? `Updated ${workoutCount(updatedCount)}.` : '',
+      removedCount ? `Removed ${workoutCount(removedCount)}.` : '',
+      rebuilt ? 'Recalculated PRs.' : '',
+    ].filter(Boolean).join(' ');
+    return {
+      title: addedCount || updatedCount || removedCount ? 'Workout changes synced' : 'Workout history is up to date',
+      detail,
+    };
+  });
+
+  const handleRecalculatePRs = () => runWorkoutAction('recalculate', 'Couldn’t recalculate PRs', async uid => {
+    await cloudFunctions.processAllResultsForPRs(uid);
+    await Promise.all([cacheService.invalidateCache(uid, 'prStats'), cacheService.invalidateCache(uid, 'prEvents')]);
+    await loadPREvents();
+    return { title: 'PRs recalculated' };
+  });
 
   const handleDisconnectConcept2 = async () => {
     if (!user) return;
@@ -376,35 +364,30 @@ export const ProfilePage: React.FC = () => {
     });
   };
 
-  const getSyncButtonText = () => {
-    switch (syncStatus) {
-      case 'syncing':
-        return 'Syncing...';
-      case 'processing':
-        return 'Processing...';
-      default:
-        return 'Sync New Data';
-    }
+  const renderWorkoutFeedback = (action: WorkoutAction) => {
+    if (workoutFeedback?.action !== action) return null;
+    const { title, detail, error } = workoutFeedback;
+    const Icon = error ? AlertTriangle : CheckCircle;
+    return (
+      <div
+        role={error ? 'alert' : 'status'}
+        className={`mt-3 flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm ${error
+          ? 'border-red-300 bg-red-50 text-red-900'
+          : 'border-emerald-300 bg-emerald-50 text-emerald-900'}`}
+      >
+        <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        <div>
+          <p className="font-semibold">{title}</p>
+          {detail && <p className="mt-0.5">{detail}</p>}
+        </div>
+      </div>
+    );
   };
 
-  const getPRButtonText = () => {
-    if (prReprocessing) return 'Recalculating...';
-    if (prReprocessComplete) return 'Completed!';
-    return 'Recalculate All PRs';
-  };
-
-  const getPRButtonIcon = () => {
-    if (prReprocessing) return <LoadingSpinner size="sm" className="text-white" />;
-    if (prReprocessComplete) return <CheckCircle className="w-4 h-4" />;
-    return <Trophy className="w-4 h-4" />;
-  };
-
-  const getPRButtonStyle = () => {
-    if (prReprocessComplete) {
-      return 'bg-green-500 hover:bg-green-600';
-    }
-    return 'bg-amber-500 hover:bg-amber-600';
-  };
+  const isSyncing = activeWorkoutAction === 'sync';
+  const isReconciling = activeWorkoutAction === 'reconcile';
+  const isRecalculating = activeWorkoutAction === 'recalculate';
+  const workoutButtonClass = 'inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[14rem]';
 
   // Filter PR stats by selected sport
   const filteredPRStats = prStats.filter(stat => {
@@ -503,6 +486,72 @@ export const ProfilePage: React.FC = () => {
         </div>
       </div>
 
+      <section aria-labelledby="workout-data-heading" className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="flex items-center gap-3 border-b border-slate-200 p-6">
+          <RefreshCw className="w-5 h-5 text-slate-600" aria-hidden="true" />
+          <h2 id="workout-data-heading" className="text-xl font-semibold text-slate-900">Workout data</h2>
+        </div>
+
+        <div className="divide-y divide-slate-200">
+          <div className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="font-medium text-slate-900">New workouts</h3>
+              <p className="mt-1 text-sm text-slate-600">Import workouts you’ve added to your Concept2 Logbook.</p>
+              {renderWorkoutFeedback('sync')}
+            </div>
+            <button
+              onClick={handleSyncData}
+              disabled={workoutActionsDisabled}
+              aria-busy={isSyncing}
+              className={workoutButtonClass + ' bg-blue-600 text-white hover:bg-blue-700'}
+            >
+              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'motion-safe:animate-spin' : ''}`} aria-hidden="true" />
+              <span>{isSyncing ? syncStatus === 'processing' ? 'Updating PRs…' : 'Syncing new data…' : 'Sync New Data'}</span>
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-3 bg-blue-50 px-6 py-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="font-medium text-slate-900">Edited or deleted workouts</h3>
+              <p className="mt-1 text-sm text-slate-600">Use this after changing an existing workout in Concept2. Your PRs will update too.</p>
+              {renderWorkoutFeedback('reconcile')}
+            </div>
+            <button
+              onClick={handleReconcileHistory}
+              disabled={workoutActionsDisabled}
+              aria-busy={isReconciling}
+              className={workoutButtonClass + ' border border-blue-300 bg-white text-blue-900 hover:bg-blue-100'}
+            >
+              <History className={`w-4 h-4 ${isReconciling ? 'motion-safe:animate-spin' : ''}`} aria-hidden="true" />
+              <span>{isReconciling ? 'Checking history…' : 'Sync edits and deletions'}</span>
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="font-medium text-slate-900">Personal records</h3>
+              <p className="mt-1 text-sm text-slate-600">Rebuild PRs from the workouts already in PB Dash.</p>
+              {renderWorkoutFeedback('recalculate')}
+            </div>
+            <button
+              onClick={handleRecalculatePRs}
+              disabled={workoutActionsDisabled}
+              aria-busy={isRecalculating}
+              className={workoutButtonClass + ' border border-slate-300 bg-white text-slate-800 hover:bg-slate-50'}
+            >
+              {isRecalculating
+                ? <RefreshCw className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" />
+                : <Trophy className="h-4 w-4" aria-hidden="true" />}
+              <span>{isRecalculating ? 'Recalculating…' : 'Recalculate All PRs'}</span>
+            </button>
+          </div>
+        </div>
+
+        {!concept2Connected && (
+          <p className="border-t border-slate-200 px-6 py-3 text-sm text-amber-700">Connect Concept2 to manage your workout data.</p>
+        )}
+      </section>
+
       {/* Settings Section */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200">
         <div className="p-6 border-b border-slate-200">
@@ -567,52 +616,6 @@ export const ProfilePage: React.FC = () => {
                 Year
               </button>
             </div>
-          </div>
-
-          {/* Manual Sync Buttons */}
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-sm font-medium text-slate-900 mb-2">Data Management</h3>
-              <p className="text-sm text-slate-600 mb-4">Sync new workouts as usual. Reconcile history after editing or deleting a workout in Concept2.</p>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={handleSyncData}
-                disabled={syncStatus !== 'idle' || !concept2Connected || prReprocessing}
-                className="flex items-center justify-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <RefreshCw className={`w-4 h-4 ${syncStatus !== 'idle' ? 'animate-spin' : ''}`} />
-                <span>{reconciling ? 'Sync New Data' : getSyncButtonText()}</span>
-              </button>
-
-              <button
-                onClick={handleReconcileHistory}
-                disabled={syncStatus !== 'idle' || !concept2Connected || prReprocessing || reconciling}
-                className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 disabled:opacity-50"
-              >
-                {reconciling ? 'Checking history…' : 'Reconcile history'}
-              </button>
-              
-              <button
-                onClick={handleRecalculatePRs}
-                disabled={syncStatus !== 'idle' || !concept2Connected || prReprocessing}
-                className={`flex items-center justify-center space-x-2 px-4 py-2 text-white rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${getPRButtonStyle()}`}
-              >
-                {getPRButtonIcon()}
-                <span>{getPRButtonText()}</span>
-              </button>
-            </div>
-
-            {reconcileMessage && (
-              <p role={reconcileMessage.error ? 'alert' : 'status'} className={reconcileMessage.error ? 'text-sm text-red-700' : 'text-sm text-slate-700'}>
-                {reconcileMessage.text}
-              </p>
-            )}
-            
-            {!concept2Connected && (
-              <p className="text-sm text-amber-600">Connect your Concept2 account to enable data management features</p>
-            )}
           </div>
         </div>
       </div>
