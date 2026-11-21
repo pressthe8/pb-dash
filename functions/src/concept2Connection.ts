@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { CallableRequest, HttpsError, onCall } from 'firebase-functions/v2/https';
+import { requireActiveAccount } from './accountDeletionState';
 import { Concept2ApiService, concept2AuthorizationUrl, concept2ClientId, concept2Secrets } from './concept2ApiService';
 import { concept2TokenRef } from './concept2Tokens';
 
@@ -33,7 +34,10 @@ export const beginConcept2Connection = onCall<{ redirectUri: string }>({ secrets
   }
   const state = randomBytes(32).toString('base64url');
   const authorizationUrl = concept2AuthorizationUrl(redirectUri, state);
-  await concept2AttemptRef(uid).set({ state, redirectUri, expiresAt: Date.now() + callbackLifetimeMs, used: false });
+  await db.runTransaction(async tx => {
+    await requireActiveAccount(tx, uid);
+    tx.set(concept2AttemptRef(uid), { state, redirectUri, expiresAt: Date.now() + callbackLifetimeMs, used: false });
+  });
   return { state, authorizationUrl };
 });
 
@@ -47,6 +51,7 @@ export const completeConcept2Connection = onCall<{ code: string; state: string }
 
   const ref = concept2AttemptRef(uid);
   const redirectUri = await db.runTransaction(async (tx) => {
+    await requireActiveAccount(tx, uid);
     const attempt = (await tx.get(ref)).data();
     if (!attempt || attempt.state !== state || attempt.used || attempt.expiresAt <= Date.now() ||
         !callbackIsAllowed(attempt.redirectUri)) {
@@ -58,6 +63,7 @@ export const completeConcept2Connection = onCall<{ code: string; state: string }
 
   const tokens = await new Concept2ApiService().exchangeCode(code, redirectUri);
   await db.runTransaction(async (tx) => {
+    await requireActiveAccount(tx, uid);
     const current = (await tx.get(ref)).data();
     if (current?.state !== state) {
       throw new HttpsError('aborted', 'A newer Concept2 connection was started. Use that connection instead.');

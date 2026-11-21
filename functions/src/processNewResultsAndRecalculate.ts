@@ -5,7 +5,7 @@ import { Concept2Result } from './types';
 import { calculatePaceFor500m } from './paceCalculation';
 import { matchesPRType } from './prEligibility';
 import { rebuildPersonalBests } from './processAllResultsForPRs';
-import { needsPRRebuild, withWorkoutSyncLock, workoutSyncTimeoutSeconds } from './workoutSyncLock';
+import { needsPRRebuild, withWorkoutSyncLock, WorkoutSyncLock, workoutSyncTimeoutSeconds } from './workoutSyncLock';
 
 const db = admin.firestore();
 
@@ -68,7 +68,7 @@ export const processNewResultsAndRecalculate = onCall<ProcessNewResultsAndRecalc
 
       // Step 4: Process new results for PRs using smart PR logic
       await lock.write(tx => { tx.update(lock.ref, { prAppendStarted: true }); });
-      const { newPREventsCreated, activitiesProcessed } = await processNewResultsForPRs(userId, newResults);
+      const { newPREventsCreated, activitiesProcessed } = await processNewResultsForPRs(userId, newResults, lock);
 
       // Step 5: If we created new PR events, recalculate scopes for affected activities
       let totalPRsProcessed = existingPREventsSnapshot.size + newPREventsCreated;
@@ -93,7 +93,7 @@ export const processNewResultsAndRecalculate = onCall<ProcessNewResultsAndRecalc
 
         // Recalculate scopes for all activities (efficient since we only update scopes)
         for (const [activityKey, activityEvents] of Object.entries(activitiesByKey)) {
-          await assignScopesForActivity(userId, activityKey, activityEvents as any[]);
+          await assignScopesForActivity(userId, activityKey, activityEvents as any[], lock);
         }
         
         totalPRsProcessed = updatedPREventsSnapshot.size;
@@ -118,7 +118,7 @@ export const processNewResultsAndRecalculate = onCall<ProcessNewResultsAndRecalc
 /**
  * Process new results for PRs (only results that don't have PR events yet)
  */
-async function processNewResultsForPRs(userId: string, newResults: Concept2Result[]): Promise<{ newPREventsCreated: number; activitiesProcessed: number }> {
+async function processNewResultsForPRs(userId: string, newResults: Concept2Result[], lock: WorkoutSyncLock): Promise<{ newPREventsCreated: number; activitiesProcessed: number }> {
   if (newResults.length === 0) {
     return { newPREventsCreated: 0, activitiesProcessed: 0 };
   }
@@ -138,7 +138,7 @@ async function processNewResultsForPRs(userId: string, newResults: Concept2Resul
     // If no PR types exist, initialize from template
     if (prTypes.length === 0) {
       console.log('No active PR types found for user, initializing from template');
-      await initializeUserPRTypesFromTemplate(userId);
+      await initializeUserPRTypesFromTemplate(userId, lock);
       
       // Re-fetch after initialization
       const updatedSnapshot = await prTypesRef.where('is_active', '==', true).orderBy('display_order', 'asc').get();
@@ -155,8 +155,7 @@ async function processNewResultsForPRs(userId: string, newResults: Concept2Resul
 
     // Create PR events for new results only
     const prEventsRef = db.collection('users').doc(userId).collection('pr_events');
-    const batch = db.batch();
-    let newPRCount = 0;
+    const newEvents: { ref: FirebaseFirestore.DocumentReference; data: FirebaseFirestore.DocumentData }[] = [];
     const affectedActivities = new Set<string>();
 
     // Process each new result
@@ -192,20 +191,20 @@ async function processNewResultsForPRs(userId: string, newResults: Concept2Resul
           const docId = `${result.id}_${prType.activity_key}`;
           const docRef = prEventsRef.doc(docId);
           
-          batch.set(docRef, prEventData, { merge: true });
-          newPRCount++;
+          newEvents.push({ ref: docRef, data: prEventData });
           affectedActivities.add(prType.activity_key);
         }
       }
     }
 
-    // Commit batch if we have new PR events
-    if (newPRCount > 0) {
-      await batch.commit();
-      console.log(`Created ${newPRCount} new PR events for user ${userId}`);
+    if (newEvents.length > 0) {
+      await lock.write(tx => {
+        for (const event of newEvents) tx.set(event.ref, event.data, { merge: true });
+      });
+      console.log(`Created ${newEvents.length} new PR events for user ${userId}`);
     }
 
-    return { newPREventsCreated: newPRCount, activitiesProcessed: affectedActivities.size };
+    return { newPREventsCreated: newEvents.length, activitiesProcessed: affectedActivities.size };
   } catch (error) {
     console.error('Error processing new results for PRs:', error);
     throw error;
@@ -215,7 +214,7 @@ async function processNewResultsForPRs(userId: string, newResults: Concept2Resul
 /**
  * Initialize user PR types from top-level template collection
  */
-async function initializeUserPRTypesFromTemplate(userId: string): Promise<void> {
+async function initializeUserPRTypesFromTemplate(userId: string, lock: WorkoutSyncLock): Promise<void> {
   try {
     console.log('Initializing PR types from template for user:', userId);
     
@@ -233,24 +232,17 @@ async function initializeUserPRTypesFromTemplate(userId: string): Promise<void> 
     const templateSnapshot = await templatePRTypesRef.get();
     
     // Copy template PR types to user subcollection
-    const batch = db.batch();
-    let copiedCount = 0;
-    
-    templateSnapshot.docs.forEach(doc => {
-      const templateData = doc.data();
-      const userPRTypeRef = userPRTypesRef.doc(doc.id);
-      
-      batch.set(userPRTypeRef, {
-        ...templateData,
-        created_at: FieldValue.serverTimestamp(),
-        updated_at: FieldValue.serverTimestamp()
-      });
-      
-      copiedCount++;
+    await lock.write(tx => {
+      for (const doc of templateSnapshot.docs) {
+        tx.set(userPRTypesRef.doc(doc.id), {
+          ...doc.data(),
+          created_at: FieldValue.serverTimestamp(),
+          updated_at: FieldValue.serverTimestamp()
+        });
+      }
     });
     
-    await batch.commit();
-    console.log(`Copied ${copiedCount} PR types from template to user ${userId}`);
+    console.log(`Copied ${templateSnapshot.size} PR types from template to user ${userId}`);
     
   } catch (error) {
     console.error('Error initializing user PR types from template:', error);
@@ -261,7 +253,7 @@ async function initializeUserPRTypesFromTemplate(userId: string): Promise<void> 
 /**
  * Assign scopes for a specific activity with provided events
  */
-async function assignScopesForActivity(userId: string, activityKey: string, events: any[]): Promise<void> {
+async function assignScopesForActivity(userId: string, activityKey: string, events: any[], lock: WorkoutSyncLock): Promise<void> {
   try {
     if (events.length === 0) return;
 
@@ -320,9 +312,9 @@ async function assignScopesForActivity(userId: string, activityKey: string, even
     }
 
     // Step 4: Update all events with their scopes
-    const batch = db.batch();
     const prEventsRef = db.collection('users').doc(userId).collection('pr_events');
 
+    const updates = [];
     for (const event of sortedEvents) {
       const scopes: string[] = [];
       
@@ -343,14 +335,14 @@ async function assignScopesForActivity(userId: string, activityKey: string, even
       }
 
       // Update the event with new scopes
-      const docRef = prEventsRef.doc(event.id);
-      batch.update(docRef, {
-        pr_scope: scopes,
-        updated_at: FieldValue.serverTimestamp()
-      });
+      updates.push({ ref: prEventsRef.doc(event.id), scopes });
     }
 
-    await batch.commit();
+    await lock.write(tx => {
+      for (const { ref, scopes } of updates) {
+        tx.update(ref, { pr_scope: scopes, updated_at: FieldValue.serverTimestamp() });
+      }
+    });
     console.log(`Updated scopes for ${sortedEvents.length} events in activity ${activityKey}`);
   } catch (error) {
     console.error(`Error assigning scopes for activity ${activityKey}:`, error);

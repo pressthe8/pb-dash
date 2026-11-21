@@ -216,6 +216,12 @@ firebase deploy --only firestore:rules,firestore:indexes --project bolt-c2
 
 Existing users can keep their saved connections until Concept2 rejects their refresh token or the app credentials change. Rotate the old dev client secret in Concept2 after the frontend no longer needs it, update Secret Manager, and redeploy the Functions that use it.
 
+For account deletion, deploy the Firestore rules, Firestore index configuration (which enables TTL for deletion guards), and Storage rules before releasing the updated deletion function.
+
+```bash
+firebase deploy --only firestore:rules,firestore:indexes,storage --project bolt-c2
+```
+
 Run the production deployment separately when ready:
 
 ```bash

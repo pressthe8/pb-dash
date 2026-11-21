@@ -14,7 +14,9 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) &&
+        !exists(/databases/$(database)/documents/account_deletions/$(userId));
 
       match /results/{resultId} {
         allow read: if isOwner(userId);

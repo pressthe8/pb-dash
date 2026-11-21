@@ -64,6 +64,7 @@ export const ProfilePage: React.FC = () => {
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   
   const [activeWorkoutAction, setActiveWorkoutAction] = useState<WorkoutAction | null>(null);
   const [workoutFeedback, setWorkoutFeedback] = useState<WorkoutFeedback | null>(null);
@@ -301,39 +302,33 @@ export const ProfilePage: React.FC = () => {
 
   const handleDeleteAccount = async () => {
     if (!user || deleteConfirmText !== 'DELETE') return;
-    
+
+    setDeleting(true);
+    setDeleteError('');
     try {
-      setDeleting(true);
-      console.log('Starting account deletion process');
-      
-      // Call Cloud Function to delete all user data
       await cloudFunctions.deleteUserAccount(user.uid);
-      console.log('Cloud Function deletion completed');
-      
-      // Clear all local caches and storage
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      const detail = error as { code?: string; message?: string };
+      setDeleteError(
+        (detail?.code === 'functions/aborted' || detail?.code === 'functions/unavailable') && detail.message
+          ? detail.message
+          : 'Couldn’t confirm that account deletion completed. Please try again.'
+      );
+      setDeleting(false);
+      return;
+    }
+
+    try {
       await cacheService.invalidateAllCache();
       localStorage.clear();
       sessionStorage.clear();
-      console.log('Local storage cleared');
-      
-      // Note: Firebase Auth user deletion is handled by the Cloud Function
-      // The user will be automatically signed out when their account is deleted
-      
-      setShowDeleteConfirm(false);
-      setDeleteConfirmText('');
-      
-      // Show success message briefly before redirect
-      alert('Account deleted successfully. You will be redirected to the login page.');
-      
-      // Redirect to login page
-      window.location.href = '/login';
-      
     } catch (error) {
-      console.error('Error deleting account:', error);
-      alert(`Account deletion failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setDeleting(false);
+      console.error('Error clearing local data after account deletion:', error);
     }
+    await signOut().catch(error => console.error('Error signing out after account deletion:', error));
+    alert('Your PB Dash account has been deleted.');
+    window.location.replace('/login');
   };
 
   const handleSignOut = async () => {
@@ -702,7 +697,10 @@ export const ProfilePage: React.FC = () => {
               <p className="text-sm text-red-700">Permanently delete your account and all data. This cannot be undone.</p>
             </div>
             <button
-              onClick={() => setShowDeleteConfirm(true)}
+              onClick={() => {
+                setDeleteError('');
+                setShowDeleteConfirm(true);
+              }}
               disabled={deleting}
               className="flex items-center space-x-2 px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -767,7 +765,7 @@ export const ProfilePage: React.FC = () => {
               </h3>
               
               <p className="text-slate-600 mb-4">
-                This will permanently delete your account and all associated data including workouts, personal records, and preferences. This action cannot be undone.
+                This deletes your PB Dash account, imported workouts, personal records, preferences, and shared PB images. Your original workouts stay in the Concept2 Logbook.
               </p>
               
               <div className="mb-6">
@@ -783,6 +781,12 @@ export const ProfilePage: React.FC = () => {
                   placeholder="DELETE"
                 />
               </div>
+
+              {deleteError && (
+                <p role="alert" className="mb-4 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
+                  {deleteError}
+                </p>
+              )}
               
               <div className="flex space-x-3">
                 <button

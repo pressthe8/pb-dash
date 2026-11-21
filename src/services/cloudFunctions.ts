@@ -54,16 +54,6 @@ interface ProcessNewResultsAndRecalculateResponse {
   newPREventsCreated: number;
 }
 
-interface DeleteUserAccountRequest {
-  userId: string;
-}
-
-interface DeleteUserAccountResponse {
-  success: boolean;
-  deletedCollections: string[];
-  deletedDocuments: number;
-}
-
 interface UploadPbGridRequest {
   userId: string;
   imageData: string;
@@ -315,22 +305,13 @@ export class CloudFunctionsService {
   /**
    * Delete user account and all associated data
    */
-  async deleteUserAccount(userId: string): Promise<DeleteUserAccountResponse> {
-    const functionName = 'deleteUserAccountFunction';
-    
-    try {
-      console.log(`Triggering ${functionName} for user:`, userId);
-      
-      // Use Firebase SDK's httpsCallable which automatically handles authentication
-      const deleteFunction = httpsCallable<{ userId: string }, DeleteUserAccountResponse>(functions, functionName);
-      
-      const result = await deleteFunction({ userId });
-      
-      console.log(`${functionName} completed:`, result.data);
-      return result.data;
-    } catch (error) {
-      console.error(`${functionName} failed:`, error);
-      this.handleCloudFunctionError(error, functionName);
+  async deleteUserAccount(userId: string): Promise<void> {
+    const removeAccount = httpsCallable<{ userId: string }, { success: boolean }>(
+      functions, 'deleteUserAccountFunction', { timeout: 310_000 }
+    );
+    const { data } = await removeAccount({ userId });
+    if (!data?.success) {
+      throw new Error('Couldn’t confirm that account deletion completed. Try again from Profile.');
     }
   }
 
@@ -351,6 +332,7 @@ export class CloudFunctionsService {
       console.log(`${functionName} completed:`, result.data);
       return result.data;
     } catch (error) {
+      if ((error as { code?: string })?.code === 'functions/resource-exhausted') throw error;
       console.error(`${functionName} failed:`, error);
       this.handleCloudFunctionError(error, functionName);
     }

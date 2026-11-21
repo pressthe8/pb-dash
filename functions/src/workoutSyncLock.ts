@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
+import { requireActiveAccount } from './accountDeletionState';
 import { PR_ELIGIBILITY_VERSION } from './prEligibility';
 
 export const workoutSyncTimeoutSeconds = 120;
@@ -34,9 +35,10 @@ export async function withWorkoutSyncLock<T>(uid: string, run: (lock: WorkoutSyn
   const ref = workoutSyncRef(uid);
   const id = randomUUID();
   const state = await db.runTransaction(async tx => {
+    await requireActiveAccount(tx, uid);
     const current = (await tx.get(ref)).data() as WorkoutSyncState | undefined;
     if (current?.lease?.expiresAt > Date.now()) {
-      throw new HttpsError('aborted', 'Another workout sync or PB rebuild is running. Try again shortly.');
+      throw new HttpsError('aborted', 'Another workout sync, PR rebuild or image upload is running. Try again shortly.');
     }
     tx.set(ref, { lease: { id, expiresAt: Date.now() + (workoutSyncTimeoutSeconds + 30) * 1000 } }, { merge: true });
     return current || {};
@@ -47,6 +49,7 @@ export async function withWorkoutSyncLock<T>(uid: string, run: (lock: WorkoutSyn
       ref,
       state,
       write: work => db.runTransaction(async tx => {
+        await requireActiveAccount(tx, uid);
         const lease = (await tx.get(ref)).get('lease') as WorkoutSyncState['lease'];
         if (lease?.id !== id || lease.expiresAt <= Date.now()) {
           throw new HttpsError('aborted', 'This workout sync is no longer active. Try again.');
