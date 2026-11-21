@@ -95,10 +95,11 @@ export class PersonalRecordsService {
       );
       const prTypesSnapshot = await getDocs(prTypesQuery);
       
-      const prTypes = prTypesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const prTypes = prTypesSnapshot.docs.flatMap(doc => {
+        const { activity_key, activity_name } = doc.data();
+        if (typeof activity_key !== 'string' || !activity_key) return [];
+        return [{ activity_key, activity_name: typeof activity_name === 'string' ? activity_name : undefined }];
+      });
       
       console.log(`Retrieved ${prTypes.length} active PR types for user ${userId}`);
       

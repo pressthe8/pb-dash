@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Trophy, Calendar, Clock, Ruler, TrendingUp, ChevronDown } from 'lucide-react';
+import { Trophy, Calendar, TrendingUp, ChevronDown } from 'lucide-react';
 import { PRStats, PREvent } from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
 import { formatWorkoutDate, seasonEndYear, workoutCalendar } from '../../functions/src/workoutCalendar';
@@ -18,10 +18,7 @@ export const PersonalRecordsCard: React.FC<PersonalRecordsCardProps> = ({
   allPREvents
 }) => {
   // State management with localStorage persistence
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    const saved = localStorage.getItem('pr_view_mode');
-    return (saved as ViewMode) || 'season';
-  });
+  const [viewMode] = useState<ViewMode>(() => localStorage.getItem('pr_view_mode') === 'year' ? 'year' : 'season');
 
   // Helper function to format season display
   const formatSeasonDisplay = (seasonId: string): string => {
@@ -78,20 +75,18 @@ export const PersonalRecordsCard: React.FC<PersonalRecordsCardProps> = ({
 
   // Enhanced stats with period-specific records
   const enhancedStats = useMemo(() => {
-    if (!selectedPeriod) return prStats;
-
     return prStats.map(stat => {
       // Find the record for the selected period
-      const periodRecord = allPREvents.find(event => {
+      const periodRecord = selectedPeriod ? allPREvents.find(event => {
         if (event.activity_key !== stat.activity_key) return false;
         
         return workoutCalendar(event.achieved_at)?.[viewMode] === selectedPeriod &&
           event.pr_scope.includes(`${viewMode}-${selectedPeriod}`);
-      });
+      }) : undefined;
 
       return {
         ...stat,
-        selected_period_record: periodRecord || null
+        selected_period_record: periodRecord ?? null
       };
     });
   }, [prStats, allPREvents, selectedPeriod, viewMode]);
@@ -237,20 +232,20 @@ export const PersonalRecordsCard: React.FC<PersonalRecordsCardProps> = ({
                         }
                       </span>
                     </div>
-                    {(stat as any).selected_period_record ? (
+                    {stat.selected_period_record ? (
                       <div>
                         <div className={`text-lg font-bold ${
                           viewMode === 'season' ? 'text-blue-900' : 'text-green-900'
                         }`}>
                           {formatMetricValue(
-                            (stat as any).selected_period_record.metric_value, 
-                            (stat as any).selected_period_record.metric_type
+                            stat.selected_period_record.metric_value,
+                            stat.selected_period_record.metric_type
                           )}
                         </div>
                         <div className={`text-xs ${
                           viewMode === 'season' ? 'text-blue-700' : 'text-green-700'
                         }`}>
-                          {formatWorkoutDate((stat as any).selected_period_record.achieved_at)}
+                          {formatWorkoutDate(stat.selected_period_record.achieved_at)}
                         </div>
                       </div>
                     ) : (

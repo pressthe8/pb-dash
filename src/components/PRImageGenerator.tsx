@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Download, Share2, Image as ImageIcon, Loader2, ExternalLink, Copy, RefreshCw } from 'lucide-react';
+import React, { useState } from 'react';
+import { Download, Image as ImageIcon, Loader2, ExternalLink, Copy, RefreshCw } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { CloudFunctionsService } from '../services/cloudFunctions';
 import { PRStats, SportType, SPORT_MAPPING } from '../types/personalRecords';
@@ -72,7 +72,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const previewImageUrl = uploadedImageUrl || generatedImageUrl;
 
   const { user } = useAuth();
   const cloudFunctions = CloudFunctionsService.getInstance();
@@ -272,21 +272,6 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
     window.open(uploadedImageUrl, '_blank');
   };
 
-  const copyToClipboard = async () => {
-    const imageUrl = uploadedImageUrl || generatedImageUrl;
-    if (!imageUrl) return;
-
-    try {
-      const response = await fetch(imageUrl);
-      const blob = await response.blob();
-      await navigator.clipboard.write([
-        new ClipboardItem({ 'image/png': blob })
-      ]);
-    } catch (error) {
-      console.error('Error copying to clipboard:', error);
-    }
-  };
-
   const copyBBCode = async () => {
     if (!uploadedImageUrl) return;
 
@@ -411,7 +396,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
         )}
 
         {/* Generated Image Preview - Show first when available */}
-        {(generatedImageUrl || uploadedImageUrl) && (
+        {previewImageUrl && (
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-slate-900">Generated Image</h3>
@@ -424,7 +409,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
             </div>
             <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
               <img 
-                src={uploadedImageUrl || generatedImageUrl} 
+                src={previewImageUrl}
                 alt="Generated PB Image" 
                 className="max-w-full h-auto rounded-lg shadow-sm"
                 style={{ imageRendering: 'pixelated' }}

@@ -22,29 +22,10 @@ interface IncrementalSyncResponse extends SyncResponse {
   newResultIds: string[];
 }
 
-interface ProcessNewPRsRequest {
-  userId: string;
-  resultIds: string[];
-}
-
-interface ProcessNewPRsResponse {
-  success: boolean;
-  newPRsCount: number;
-  processedResultsCount: number;
-}
-
-interface ProcessAllResultsForPRsRequest {
-  userId: string;
-}
-
 interface ProcessAllResultsForPRsResponse {
   success: boolean;
   totalPRsProcessed: number;
   activitiesProcessed: number;
-}
-
-interface ProcessNewResultsAndRecalculateRequest {
-  userId: string;
 }
 
 interface ProcessNewResultsAndRecalculateResponse {
@@ -217,41 +198,6 @@ export class CloudFunctionsService {
     } catch (error) {
       console.error(`${functionName} failed:`, error);
       this.handleCloudFunctionError(error, functionName);
-    }
-  }
-
-  /**
-   * Process specific new results for PRs (EFFICIENT - only new results)
-   * Note: This function doesn't exist in Cloud Functions yet, so we use processAllResultsForPRs instead
-   */
-  async processNewPRs(userId: string, resultIds: string[]): Promise<ProcessNewPRsResponse> {
-    const functionName = 'processAllResultsForPRs';
-    
-    try {
-      console.log(`Processing new PRs by triggering ${functionName} for user:`, userId);
-      
-      // Since processNewPRsFunction doesn't exist, use processAllResultsForPRs instead
-      const processFunction = httpsCallable<{ userId: string }, ProcessAllResultsForPRsResponse>(functions, functionName);
-      
-      const result = await processFunction({ userId });
-      
-      console.log(`${functionName} completed:`, result.data);
-      
-      // Convert the response format to match expected ProcessNewPRsResponse
-      return {
-        success: result.data.success,
-        newPRsCount: result.data.totalPRsProcessed,
-        processedResultsCount: resultIds.length
-      };
-    } catch (error) {
-      console.error(`${functionName} failed:`, error);
-      // Don't throw error for PR processing failures - they're non-critical
-      console.log('PR processing failed but continuing...');
-      return {
-        success: false,
-        newPRsCount: 0,
-        processedResultsCount: 0
-      };
     }
   }
 

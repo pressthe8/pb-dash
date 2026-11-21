@@ -1,12 +1,11 @@
 import React from 'react';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import { User } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { FlamingStopwatchLogo } from './FlamingStopwatchLogo';
 
 export const Layout: React.FC = () => {
   const { user } = useAuth();
-  const location = useLocation();
   const navigate = useNavigate();
 
   const handleProfileClick = () => {

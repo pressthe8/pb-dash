@@ -7,8 +7,6 @@ import { formatWorkoutDate, workoutCalendar } from '../../functions/src/workoutC
 
 interface PRProgressionChartProps {
   events: PREvent[];
-  activityName: string;
-  activityKey: string;
 }
 
 const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
@@ -16,11 +14,7 @@ const formatMonthTick = (value: unknown) => value instanceof Date ? monthLabel.f
 const formatYearTick = (value: unknown) => value instanceof Date ? String(value.getUTCFullYear()) : String(value);
 const formatDay = (value: unknown) => value instanceof Date ? value.toISOString().slice(0, 10) : String(value);
 
-export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
-  events,
-  activityName,
-  activityKey
-}) => {
+export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({ events }) => {
   // Helper function to format season display
   const formatSeasonDisplay = (seasonId: string): string => {
     const endYear = parseInt(seasonId);
@@ -198,7 +192,7 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
   }, [getAxisConfiguration]);
 
   // Custom points layer function
-  const CustomPointsLayer = ({ points, xScale, yScale }: any) => {
+  const CustomPointsLayer = ({ points }: any) => {
     return (
       <g>
         {points.map((point: any) => {

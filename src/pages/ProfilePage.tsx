@@ -7,10 +7,10 @@ import { CloudFunctionsService } from '../services/cloudFunctions';
 import { DataCacheService } from '../services/dataCacheService';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { PRImageGenerator } from '../components/PRImageGenerator';
-import { UserProfile, SportType, SPORT_MAPPING } from '../types/personalRecords';
+import { PREvent, UserProfile, SportType, SPORT_MAPPING } from '../types/personalRecords';
+import { asErgSport } from '../../functions/src/workoutSport';
 import { 
   User, 
-  Calendar, 
   RefreshCw,
   History,
   Trophy, 
@@ -22,8 +22,7 @@ import {
   CheckCircle,
   Settings,
   Shield,
-  LogOut,
-  Image as ImageIcon
+  LogOut
 } from 'lucide-react';
 
 // Extended profile interface that includes sync timestamp
@@ -71,7 +70,7 @@ export const ProfilePage: React.FC = () => {
 
   // State for PR image generation
   const [selectedSport, setSelectedSport] = useState<SportType>('rower');
-  const [allPREvents, setAllPREvents] = useState<any[]>([]);
+  const [allPREvents, setAllPREvents] = useState<PREvent[]>([]);
 
   const firebaseService = FirebaseService.getInstance();
   const cloudFunctions = CloudFunctionsService.getInstance();
@@ -387,7 +386,7 @@ export const ProfilePage: React.FC = () => {
   // Filter PR stats by selected sport
   const filteredPRStats = prStats.filter(stat => {
     const activityEvents = allPREvents.filter(event => event.activity_key === stat.activity_key);
-    return activityEvents.some(event => event.sport === selectedSport);
+    return activityEvents.some(event => asErgSport(event.sport) === selectedSport);
   });
 
   if (loading) {

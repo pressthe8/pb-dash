@@ -49,7 +49,6 @@ export const useAuthProvider = (): AuthContextType => {
       const result = await cloudFunctions.incrementalSync(uid);
       await cache.invalidateCache(uid, 'userProfile');
       await cache.invalidateCache(uid, 'allResults');
-      await cache.invalidateCache(uid, 'dashboardStats');
       if (result.newResultIds.length || result.prRepairPending) {
         if (foreground) setSyncStatus('processing');
         await cloudFunctions.processNewResultsAndRecalculate(uid);
@@ -153,7 +152,7 @@ export const useAuthProvider = (): AuthContextType => {
         }
         throw error;
       } finally {
-        const keys = ['userProfile', 'allResults', 'dashboardStats', 'prStats', 'prEvents'] as const;
+        const keys = ['userProfile', 'allResults', 'prStats', 'prEvents'] as const;
         await Promise.all(keys.map(key => cache.invalidateCache(user.uid, key)));
         setSyncStatus('idle');
       }

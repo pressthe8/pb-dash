@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { auth } from '../config/firebase';
 import { usePersonalRecords } from '../hooks/usePersonalRecords';
 import { FirebaseService } from '../services/firebaseService';
 import { CloudFunctionsService } from '../services/cloudFunctions';
@@ -9,9 +8,13 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { PersonalRecordsCard } from '../components/PersonalRecordsCard';
 import { PersonalBestsTableView } from '../components/PersonalBestsTableView';
 import { StoredResult } from '../types/concept2';
-import { SportType, SPORT_MAPPING } from '../types/personalRecords';
+import { PREvent, SportType, SPORT_MAPPING, UserProfile } from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
-import { Waves, TrendingUp, Link, CheckCircle, AlertTriangle, Trophy, Ruler, Clock, Bike, Mountain } from 'lucide-react';
+import { asErgSport } from '../../functions/src/workoutSport';
+import { Waves, TrendingUp, Link, AlertTriangle, Ruler, Clock, Bike, Mountain } from 'lucide-react';
+
+// Set to false to preview the legacy PB cards during development.
+const useNewTableView = true;
 
 interface DashboardStats {
   totalWorkouts: number;
@@ -24,30 +27,20 @@ export const DashboardPage: React.FC = () => {
   const { 
     user, 
     concept2Connected, 
-    clearConcept2Connection,
     connectionExpired,
     clearConnectionExpired,
     syncStatus
   } = useAuth();
-  const { prStats, loading: prLoading, error: prError, loadPRData, processNewResultsAndRecalculate, getPREvents } = usePersonalRecords();
+  const { prStats, loading: prLoading, error: prError, getPREvents } = usePersonalRecords();
   const [allResults, setAllResults] = useState<StoredResult[]>([]);
-  const [allPREvents, setAllPREvents] = useState<any[]>([]);
+  const [allPREvents, setAllPREvents] = useState<PREvent[]>([]);
   const [loading, setLoading] = useState(true);
   const hasLoadedDataRef = useRef(false);
-  const [stats, setStats] = useState<DashboardStats>({
-    totalWorkouts: 0,
-    totalDistance: 0,
-    totalTime: 0,
-    averageDistance: 0
-  });
 
   // Sport filtering state
   const [selectedSport, setSelectedSport] = useState<SportType>('rower');
   const [hasLoadedSportPreference, setHasLoadedSportPreference] = useState(false);
-  const [userProfile, setUserProfile] = useState<any>(null);
-
-  // DEV ONLY: Toggle between old and new PB views
-  const [useNewTableView, setUseNewTableView] = useState(true);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   const [connecting, setConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -59,14 +52,14 @@ export const DashboardPage: React.FC = () => {
   const determineDefaultSport = useCallback((results: StoredResult[], profileSetting?: SportType): SportType => {
     if (profileSetting) return profileSetting;
     
-    // Count results by sport
-    const sportCounts = results.reduce((acc, result) => {
-      acc[result.type] = (acc[result.type] || 0) + 1;
-      return acc;
-    }, {} as Record<SportType, number>);
-    
+    const sportCounts = new Map<SportType, number>();
+    for (const result of results) {
+      const sport = asErgSport(result.type);
+      if (sport) sportCounts.set(sport, (sportCounts.get(sport) ?? 0) + 1);
+    }
+
     // Return sport with highest count, fallback to 'rower'
-    const entries = Object.entries(sportCounts) as [SportType, number][];
+    const entries = [...sportCounts];
     if (entries.length === 0) return 'rower';
     
     return entries.reduce((a, b) => a[1] > b[1] ? a : b)[0];
@@ -75,8 +68,8 @@ export const DashboardPage: React.FC = () => {
   // Reason: Load sport preference from session storage and profile
   useEffect(() => {
     if (!hasLoadedSportPreference && allResults.length > 0) {
-      const sessionSport = localStorage.getItem('dashboard_sport_filter') as SportType;
-      const defaultSport = determineDefaultSport(allResults, userProfile?.default_sport);
+      const sessionSport = asErgSport(localStorage.getItem('dashboard_sport_filter'));
+      const defaultSport = determineDefaultSport(allResults, asErgSport(userProfile?.default_sport));
       
       setSelectedSport(sessionSport || defaultSport);
       setHasLoadedSportPreference(true);
@@ -107,7 +100,7 @@ export const DashboardPage: React.FC = () => {
 
   // Reason: Filter data based on selected sport - NOW USING DIRECT SPORT FIELD
   const filteredResults = useMemo(() => 
-    allResults.filter(result => result.type === selectedSport), 
+    allResults.filter(result => asErgSport(result.type) === selectedSport),
     [allResults, selectedSport]
   );
 
@@ -116,21 +109,14 @@ export const DashboardPage: React.FC = () => {
     [filteredResults, calculateStats]
   );
 
-  // Reason: Filter PR stats using direct sport field from PR events (more efficient)
-  const filteredPRStats = useMemo(() => 
-    prStats.filter(stat => {
-      // Check if any PR event for this activity matches the selected sport
-      const activityEvents = allPREvents.filter(event => event.activity_key === stat.activity_key);
-      return activityEvents.some(event => event.sport === selectedSport);
-    }), 
-    [prStats, allPREvents, selectedSport]
-  );
-
-  // Reason: Filter PR events using direct sport field (much more efficient)
-  const filteredPREvents = useMemo(() => 
-    allPREvents.filter(event => event.sport === selectedSport), 
+  const filteredPREvents = useMemo(() =>
+    allPREvents.filter(event => asErgSport(event.sport) === selectedSport),
     [allPREvents, selectedSport]
   );
+  const filteredPRStats = useMemo(() => {
+    const activityKeys = new Set(filteredPREvents.map(event => event.activity_key));
+    return prStats.filter(stat => activityKeys.has(stat.activity_key));
+  }, [prStats, filteredPREvents]);
 
   // Reason: Memoize loadDashboardData to prevent unnecessary recreations
   const loadDashboardData = useCallback(async () => {
@@ -149,35 +135,9 @@ export const DashboardPage: React.FC = () => {
       
       // Reason: Try to get cached data first for instant response
       const cachedResults = await cacheService.getCachedData<StoredResult[]>(user.uid, 'allResults');
-      const cachedStats = await cacheService.getCachedData<DashboardStats>(user.uid, 'dashboardStats');
-      
-      if (cachedResults && cachedStats) {
-        console.log('Using cached dashboard data');
-        setAllResults(cachedResults);
-        setStats(cachedStats);
-        
-        // Load PR events (might be cached too)
-        const prEvents = await getPREvents();
-        setAllPREvents(prEvents);
-        
-        setLoading(false);
-        return;
-      }
-      
-      // Reason: Load fresh data if not cached
-      console.log('Loading fresh dashboard data from database');
-      
-      // Load all results once and derive everything from that
-      const results = await firebaseService.getAllResults(user.uid);
+      const results = cachedResults ?? await firebaseService.getAllResults(user.uid);
       setAllResults(results);
-      
-      // Cache the results for future use
-      await cacheService.setCachedData(user.uid, 'allResults', results);
-      
-      // Calculate and cache stats (full stats, not filtered)
-      const calculatedStats = calculateStats(results);
-      setStats(calculatedStats);
-      await cacheService.setCachedData(user.uid, 'dashboardStats', calculatedStats);
+      if (!cachedResults) await cacheService.setCachedData(user.uid, 'allResults', results);
       
       // Load all PR events for the enhanced filtering
       const prEvents = await getPREvents();
@@ -190,7 +150,7 @@ export const DashboardPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.uid, firebaseService, cacheService, calculateStats, getPREvents]);
+  }, [user?.uid, firebaseService, cacheService, getPREvents]);
 
   // Reason: Use ref instead of state to avoid circular dependency
   useEffect(() => {

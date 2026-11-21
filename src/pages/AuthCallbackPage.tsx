@@ -156,12 +156,8 @@ export const AuthCallbackPage: React.FC = () => {
           setMessage('Organizing your personal bests...');
           
           try {
-            // For returning users with new results, we need to use processAllResultsForPRs
-            // because initialDataLoad doesn't provide newResultIds, and we need to ensure
-            // the new results are properly processed for PRs
             console.log(`Processing ${syncResponse.newResultsCount} new results for PRs`);
-            console.log('Calling processAllResultsForPRs Cloud Function...');
-            const prResponse = await cloudFunctions.processAllResultsForPRs(user!.uid);
+            const prResponse = await cloudFunctions.processNewResultsAndRecalculate(user!.uid);
             console.log(`PR processing completed: ${prResponse.totalPRsProcessed} total PRs across ${prResponse.activitiesProcessed} activities`);
             
             // Reason: Invalidate PR cache after processing to ensure fresh data on dashboard

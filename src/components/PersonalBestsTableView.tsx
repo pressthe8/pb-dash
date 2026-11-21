@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ChevronDown, ArrowLeft, Trophy, Clock, Zap, Target, Mountain, MapPin } from 'lucide-react';
 import { PRStats, PREvent, SportType, SPORT_MAPPING } from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
@@ -369,11 +369,7 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
             <p className="text-sm text-slate-600 mb-4">
               Track your pace improvement over time. Gold points are all-time PBs, blue points are other personal records.
             </p>
-            <PRProgressionChart 
-              events={detailView.allAttempts}
-              activityName={detailView.activityName}
-              activityKey={detailView.activityKey}
-            />
+            <PRProgressionChart events={detailView.allAttempts} />
           </div>
 
           {/* Results Table - NOW SECOND */}
@@ -411,7 +407,7 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedDetailData.map((attempt, index) => (
+                  {sortedDetailData.map(attempt => (
                     <tr 
                       key={attempt.id} 
                       className={`border-b border-slate-100 hover:bg-slate-50 transition-colors duration-200 ${
@@ -508,7 +504,7 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
                 </tr>
               </thead>
               <tbody>
-                {filteredPRStats.map((stat, index) => {
+                {filteredPRStats.map(stat => {
                   const iconAndColors = getEventIconAndColor(stat.activity_key);
                   const showTrophy = shouldShowTrophy(stat);
                   
