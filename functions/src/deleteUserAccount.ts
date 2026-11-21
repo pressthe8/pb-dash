@@ -57,11 +57,13 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
       console.log('Deleting user tokens...');
       const tokenDocId = `user_${userId}`;
       const tokenDocRef = db.collection('user_tokens').doc(tokenDocId);
+      const syncRef = db.collection('users').doc(userId).collection('sync_state').doc('workouts');
       
       try {
         const batch = db.batch();
         batch.delete(tokenDocRef);
         batch.delete(db.collection('concept2_oauth_states').doc(userId));
+        batch.delete(syncRef);
         await batch.commit();
         deletedCollections.push('user_tokens');
         totalDeletedDocuments += 1;

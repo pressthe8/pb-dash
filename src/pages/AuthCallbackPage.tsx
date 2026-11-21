@@ -64,13 +64,9 @@ export const AuthCallbackPage: React.FC = () => {
       console.log(`User authenticated: ${user!.uid}`);
       setMessage('Securing your connection...');
       
-      const expectedState = sessionStorage.getItem('concept2_oauth_state');
-      if (expectedState !== state) {
-        throw new Error('This Concept2 connection was started in a different tab or has expired.');
-      }
-      sessionStorage.removeItem('concept2_oauth_state');
       window.history.replaceState(window.history.state, '', '/auth/callback');
 
+      // The callable verifies and consumes the state for the signed-in Firebase account.
       await cloudFunctions.completeConcept2Connection(code, state);
       markConcept2Connected();
       await firebaseService.createUserProfile(user!.uid);
@@ -171,7 +167,7 @@ export const AuthCallbackPage: React.FC = () => {
         // RETURNING USER: Process new results if any
         console.log('Returning user detected - processing new results');
         
-        if (syncResponse.newResultsCount > 0) {
+        if (syncResponse.newResultsCount > 0 || syncResponse.prRepairPending) {
           setMessage('Organizing your personal bests...');
           
           try {

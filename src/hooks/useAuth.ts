@@ -4,7 +4,7 @@ import {
   sendPasswordResetEmail, GoogleAuthProvider, onAuthStateChanged, signOut as firebaseSignOut,
 } from 'firebase/auth';
 import { auth } from '../config/firebase';
-import { CloudFunctionsService } from '../services/cloudFunctions';
+import { CloudFunctionsService, type ReconcileHistoryResult } from '../services/cloudFunctions';
 import { DataCacheService } from '../services/dataCacheService';
 
 interface AuthContextType {
@@ -19,6 +19,7 @@ interface AuthContextType {
   markConcept2Connected: () => void;
   clearConcept2Connection: () => Promise<void>;
   syncNewResults: () => Promise<number>;
+  reconcileHistory: () => Promise<ReconcileHistoryResult>;
   connectionExpired: boolean;
   clearConnectionExpired: () => void;
   syncStatus: 'idle' | 'syncing' | 'processing';
@@ -49,7 +50,7 @@ export const useAuthProvider = (): AuthContextType => {
       await cache.invalidateCache(uid, 'userProfile');
       await cache.invalidateCache(uid, 'allResults');
       await cache.invalidateCache(uid, 'dashboardStats');
-      if (result.newResultIds.length) {
+      if (result.newResultIds.length || result.prRepairPending) {
         if (foreground) setSyncStatus('processing');
         await cloudFunctions.processNewResultsAndRecalculate(uid);
         await cache.invalidateCache(uid, 'prStats');
@@ -139,6 +140,23 @@ export const useAuthProvider = (): AuthContextType => {
     syncNewResults: () => {
       if (!user) return Promise.reject(new Error('Sign in to PB Dash first.'));
       return runSync(user.uid, true);
+    },
+    reconcileHistory: async () => {
+      if (!user) throw new Error('Sign in to PB Dash first.');
+      setSyncStatus('syncing');
+      try {
+        return await cloudFunctions.reconcileConcept2History();
+      } catch (error) {
+        if (auth.currentUser?.uid === user.uid && error instanceof Error && error.message === 'REAUTH_REQUIRED') {
+          setConcept2Connected(false);
+          setConnectionExpired(true);
+        }
+        throw error;
+      } finally {
+        const keys = ['userProfile', 'allResults', 'dashboardStats', 'prStats', 'prEvents'] as const;
+        await Promise.all(keys.map(key => cache.invalidateCache(user.uid, key)));
+        setSyncStatus('idle');
+      }
     },
   };
 };

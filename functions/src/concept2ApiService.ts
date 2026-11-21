@@ -90,56 +90,75 @@ export class Concept2ApiService {
     }, tokens.scope?.trim().split(/[\s,]+/).join(',') || CONCEPT2_SCOPE);
   }
 
-  async fetchAllResults(
-    tokens: OAuthTokens,
-    refresh: (tokens: OAuthTokens) => Promise<OAuthTokens>,
-    updatedAfter?: string
-  ): Promise<Concept2ApiResponse> {
-    const allResults: Concept2Result[] = [];
+  openSession(tokens: OAuthTokens, refresh: (tokens: OAuthTokens) => Promise<OAuthTokens>) {
     let currentTokens = tokens;
-    let totalPages = 1;
 
-    const fetchPage = (url: URL) => fetch(url, {
-      headers: { 'Authorization': 'Bearer ' + currentTokens.access_token, 'Accept': 'application/json' },
-      redirect: 'error',
-      signal: AbortSignal.timeout(15000),
-    });
-
-    for (let page = 1; page <= totalPages; page++) {
+    const request = async (path: string, params?: URLSearchParams) => {
+      const url = new URL('/api/users/me' + path, logbook);
+      if (params) url.search = params.toString();
+      const fetchResult = () => fetch(url, {
+        headers: { 'Authorization': 'Bearer ' + currentTokens.access_token, 'Accept': 'application/json' },
+        redirect: 'error',
+        signal: AbortSignal.timeout(15000),
+      });
       const expiry = currentTokens.created_at + currentTokens.expires_in * 1000;
       if (!Number.isFinite(expiry) || expiry - 5 * 60 * 1000 <= Date.now()) {
         currentTokens = await refresh(currentTokens);
       }
-
-      const url = new URL('/api/users/me/results', logbook);
-      url.searchParams.set('page', page.toString());
-      if (updatedAfter) url.searchParams.set('updated_after', updatedAfter);
-
-      let response = await fetchPage(url);
+      let response = await fetchResult();
       if (response.status === 401) {
         currentTokens = await refresh(currentTokens);
-        response = await fetchPage(url);
+        response = await fetchResult();
       }
+      return response;
+    };
+
+    const requireSuccess = (response: Response) => {
       if (!response.ok) {
-        console.warn('Concept2 results request failed', { status: response.status, page });
+        console.warn('Concept2 API request failed', { status: response.status });
         throw new HttpsError('unavailable', 'Concept2 workouts are temporarily unavailable.');
       }
-
-      const result: Concept2ApiResponse = await response.json();
-      if (!Array.isArray(result?.data) || !Number.isSafeInteger(result?.meta?.pagination?.total_pages) ||
-          result.meta.pagination.total_pages < 0) {
-        throw new HttpsError('unavailable', 'Concept2 returned an invalid workout response.');
-      }
-      allResults.push(...result.data);
-      totalPages = result.meta.pagination.total_pages;
-    }
+    };
 
     return {
-      data: allResults,
-      meta: {
-        pagination: { total: allResults.length, count: allResults.length, per_page: allResults.length,
-          current_page: 1, total_pages: 1, links: [] }
-      }
+      getUserId: async (): Promise<number> => {
+        const response = await request('');
+        requireSuccess(response);
+        const id = (await response.json())?.data?.id;
+        if (!Number.isSafeInteger(id) || id <= 0) {
+          throw new HttpsError('unavailable', 'Could not verify the connected Concept2 account.');
+        }
+        return id;
+      },
+      getResult: async (id: number): Promise<Concept2Result | null> => {
+        const response = await request('/results/' + id);
+        if (response.status === 404) return null;
+        requireSuccess(response);
+        const result = (await response.json())?.data;
+        if (result?.id !== id) {
+          throw new HttpsError('unavailable', 'Concept2 returned a mismatched workout.');
+        }
+        return result;
+      },
+      fetchAllResults: async (updatedAfter?: string): Promise<Concept2Result[]> => {
+        const allResults: Concept2Result[] = [];
+        let totalPages = 1;
+
+        for (let page = 1; page <= totalPages; page++) {
+          const params = new URLSearchParams({ page: String(page) });
+          if (updatedAfter) params.set('updated_after', updatedAfter);
+          const response = await request('/results', params);
+          requireSuccess(response);
+          const result: Concept2ApiResponse = await response.json();
+          if (!Array.isArray(result?.data) || !Number.isSafeInteger(result?.meta?.pagination?.total_pages) ||
+              result.meta.pagination.total_pages < 0) {
+            throw new HttpsError('unavailable', 'Concept2 returned an invalid workout response.');
+          }
+          allResults.push(...result.data);
+          totalPages = result.meta.pagination.total_pages;
+        }
+        return allResults;
+      },
     };
   }
 }

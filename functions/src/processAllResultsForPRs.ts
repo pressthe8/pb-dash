@@ -1,396 +1,140 @@
-import { onCall } from 'firebase-functions/v2/https';
-import { defineSecret } from 'firebase-functions/params';
-import * as admin from 'firebase-admin';
+import { isDeepStrictEqual } from 'node:util';
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { Concept2Result } from './types';
 import { calculatePaceFor500m } from './paceCalculation';
+import { WorkoutSyncLock, withWorkoutSyncLock, workoutSyncTimeoutSeconds } from './workoutSyncLock';
+import { workoutBatchSize, workoutCollection } from './workoutStorage';
 
-const db = admin.firestore();
-
-// Define secrets for this function (even though not directly used, 
-// the function might need them for future enhancements)
-const concept2ClientId = defineSecret('CONCEPT2_CLIENT_ID');
-const concept2ClientSecret = defineSecret('CONCEPT2_CLIENT_SECRET');
-
-interface ProcessAllResultsForPRsRequest {
-  userId: string;
+interface PRType {
+  activity_key: string;
+  sport: string;
+  metric_type: 'time' | 'distance';
+  target_distance?: number;
+  target_time?: number;
 }
 
-interface ProcessAllResultsForPRsResponse {
-  success: boolean;
-  totalPRsProcessed: number;
-  activitiesProcessed: number;
+interface PRData {
+  user_id: string;
+  results_id: string;
+  activity_key: string;
+  sport: string;
+  pr_scope: string[];
+  metric_type: PRType['metric_type'];
+  metric_value: number;
+  achieved_at: string;
+  season_identifier: string;
+  previous_record: null;
+  pace_per_500m: number | null;
 }
 
-export const processAllResultsForPRs = onCall<ProcessAllResultsForPRsRequest>(
-  {
-    // CRITICAL: Declare the secrets this function uses (for future compatibility)
-    secrets: [concept2ClientId, concept2ClientSecret]
-  },
-  async (request): Promise<ProcessAllResultsForPRsResponse> => {
-    // Enhanced authentication verification
-    console.log('Authentication context:', {
-      hasAuth: !!request.auth,
-      authUid: request.auth?.uid,
-      authToken: request.auth?.token ? 'present' : 'missing'
-    });
+export async function rebuildPersonalBests(uid: string, lock: WorkoutSyncLock) {
+  const user = getFirestore().collection('users').doc(uid);
+  const typeRef = user.collection('pr_types');
+  const eventRef = user.collection('pr_events');
+  const [results, existing, userTypes] = await Promise.all([
+    workoutCollection(uid).get(), eventRef.get(), typeRef.get(),
+  ]);
+  let types = userTypes.docs;
 
-    if (!request.auth || !request.auth.uid) {
-      console.error('Authentication failed - no auth context or uid');
-      throw new Error('User must be authenticated');
-    }
-
-    const { userId } = request.data;
-    
-    // Verify user can only process their own data
-    if (request.auth.uid !== userId) {
-      console.error('Permission denied - auth uid does not match requested userId', {
-        authUid: request.auth.uid,
-        requestedUserId: userId
+  if (userTypes.empty) {
+    types = (await getFirestore().collection('pr_types').get()).docs;
+    for (let i = 0; i < types.length; i += workoutBatchSize) {
+      const chunk = types.slice(i, i + workoutBatchSize);
+      await lock.write(tx => {
+        for (const doc of chunk) {
+          tx.create(typeRef.doc(doc.id), {
+            ...doc.data(),
+            created_at: FieldValue.serverTimestamp(),
+            updated_at: FieldValue.serverTimestamp(),
+          });
+        }
       });
-      throw new Error('User can only process their own data');
     }
+  }
 
-    try {
-      console.log(`Starting complete PR processing for ALL results for user: ${userId}`);
-      
-      // Step 1: Clear all existing PR events (clean slate)
-      console.log('Clearing all existing PR events for clean processing');
-      const prEventsRef = db.collection('users').doc(userId).collection('pr_events');
-      const existingPREvents = await prEventsRef.get();
-      
-      if (!existingPREvents.empty) {
-        const deleteBatch = db.batch();
-        existingPREvents.docs.forEach(doc => {
-          deleteBatch.delete(doc.ref);
-        });
-        await deleteBatch.commit();
-        console.log(`Deleted ${existingPREvents.size} existing PR events`);
-      }
+  const workouts = results.docs.map(doc => doc.data() as Concept2Result).sort((a,b) =>
+    a.date.localeCompare(b.date) || a.id - b.id
+  );
+  const desired = new Map<string, PRData>();
+  const activities = new Set<string>();
 
-      // Step 2: Get ALL results for the user
-      const resultsRef = db.collection('users').doc(userId).collection('results');
-      const allResultsSnapshot = await resultsRef.get();
-      
-      if (allResultsSnapshot.empty) {
-        console.log('No results found for user');
-        return {
-          success: true,
-          totalPRsProcessed: 0,
-          activitiesProcessed: 0
-        };
-      }
+  for (const definition of types) {
+    const type = definition.data() as PRType & { is_active?: boolean };
+    if (!type.is_active || !type.activity_key || !['time', 'distance'].includes(type.metric_type)) continue;
 
-      const allResults = allResultsSnapshot.docs.map(doc => doc.data() as Concept2Result);
-      console.log(`Processing ${allResults.length} total results for PRs`);
+    const best = new Map<string, PRData>();
+    for (const result of workouts) {
+      if (result.type !== type.sport || (type.metric_type === 'time'
+        ? result.distance !== type.target_distance
+        : result.time !== type.target_time)) continue;
 
-      // Step 3: Process all results using smart PR logic
-      const { totalPRsProcessed, activitiesProcessed } = await processResultsForPRs(userId, allResults);
-
-      console.log(`Complete PR processing finished for user ${userId}: ${totalPRsProcessed} PRs across ${activitiesProcessed} activities`);
-
-      return {
-        success: true,
-        totalPRsProcessed,
-        activitiesProcessed
+      const year = Number(result.date.slice(0, 4));
+      const month = Number(result.date.slice(5, 7));
+      const season = String(month >= 5 ? year + 1 : year);
+      const event: PRData = {
+        user_id: uid, results_id: String(result.id), activity_key: type.activity_key,
+        sport: result.type, pr_scope: [], metric_type: type.metric_type,
+        metric_value: type.metric_type === 'time' ? result.time : result.distance,
+        achieved_at: result.date, season_identifier: season, previous_record: null,
+        pace_per_500m: calculatePaceFor500m(result.time, result.distance),
       };
+      desired.set(result.id + '_' + type.activity_key, event);
+      activities.add(type.activity_key);
 
-    } catch (error) {
-      console.error('Complete PR processing failed:', error);
-      throw new Error(`Complete PR processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      for (const scope of ['all-time', 'season-' + season, 'year-' + year]) {
+        const previous = best.get(scope);
+        if (!previous || (type.metric_type === 'time'
+          ? event.metric_value < previous.metric_value
+          : event.metric_value > previous.metric_value)) best.set(scope, event);
+      }
+    }
+    for (const [scope, event] of best) event.pr_scope.push(scope);
+    for (const event of new Set(best.values())) {
+      // Keep array order compatible with the existing presentation and comparisons.
+      event.pr_scope.sort((a,b) => a.localeCompare(b));
     }
   }
-);
 
-/**
- * SMART PR PROCESSING LOGIC
- * This is the core logic used by both processNewPRs and processAllResultsForPRs
- */
-async function processResultsForPRs(userId: string, results: Concept2Result[]): Promise<{ totalPRsProcessed: number; activitiesProcessed: number }> {
-  try {
-    console.log(`Starting smart PR processing for ${results.length} results for user ${userId}`);
-    
-    // Get active PR types for this user from their subcollection
-    const prTypesRef = db.collection('users').doc(userId).collection('pr_types');
-    const prTypesSnapshot = await prTypesRef.where('is_active', '==', true).orderBy('display_order', 'asc').get();
-    
-    let prTypes = prTypesSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    } as any));
-
-    // If no PR types exist, initialize from template
-    if (prTypes.length === 0) {
-      console.log('No active PR types found for user, initializing from template');
-      await initializeUserPRTypesFromTemplate(userId);
-      
-      // Re-fetch after initialization
-      const updatedSnapshot = await prTypesRef.where('is_active', '==', true).orderBy('display_order', 'asc').get();
-      prTypes = updatedSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as any));
-      
-      if (prTypes.length === 0) {
-        console.log('No PR types available after initialization');
-        return { totalPRsProcessed: 0, activitiesProcessed: 0 };
+  const old = new Map(existing.docs.map(doc => [doc.id, doc]));
+  const changes = [...desired].filter(([id, data]) => {
+    const previous = old.get(id)?.data();
+    return !previous || Object.entries(data).some(([key, value]) => !isDeepStrictEqual(previous[key], value));
+  });
+  const obsolete = existing.docs.filter(doc => !desired.has(doc.id));
+  for (let i = 0; i < changes.length; i += workoutBatchSize) {
+    await lock.write(tx => {
+      for (const [id, data] of changes.slice(i, i + workoutBatchSize)) {
+        tx.set(eventRef.doc(id), {
+          ...data,
+          created_at: old.get(id)?.get('created_at') ?? FieldValue.serverTimestamp(),
+          updated_at: FieldValue.serverTimestamp(),
+        });
       }
-    }
-
-    // Phase 1: Create PR events for all matching results
-    const prEventsRef = db.collection('users').doc(userId).collection('pr_events');
-    const batch = db.batch();
-    let newPRCount = 0;
-    const affectedActivities = new Set<string>();
-
-    // Process each result
-    for (const result of results) {
-      // Check against each PR type
-      for (const prType of prTypes) {
-        if (matchesPRType(result, prType)) {
-          const resultDate = new Date(result.date);
-          const seasonIdentifier = getSeasonIdentifier(resultDate);
-          const metricValue = getMetricValue(result, prType);
-
-          // Calculate pace for this result using shared utility
-          const paceFor500m = calculatePaceFor500m(result.time, result.distance);
-
-          // Create PR event (no scope assigned yet)
-          const prEventData = {
-            user_id: userId,
-            results_id: result.id.toString(),
-            activity_key: prType.activity_key,
-            sport: result.type, // NEW: Add sport field directly from result
-            pr_scope: [], // Will be assigned in Phase 2
-            metric_type: prType.metric_type,
-            metric_value: metricValue,
-            achieved_at: result.date,
-            season_identifier: seasonIdentifier,
-            previous_record: null,
-            pace_per_500m: paceFor500m,
-            created_at: admin.firestore.FieldValue.serverTimestamp(),
-            updated_at: admin.firestore.FieldValue.serverTimestamp()
-          };
-
-          // Use deterministic document ID
-          const docId = `${result.id}_${prType.activity_key}`;
-          const docRef = prEventsRef.doc(docId);
-          
-          batch.set(docRef, prEventData, { merge: true });
-          newPRCount++;
-          affectedActivities.add(prType.activity_key);
-        }
-      }
-    }
-
-    // Commit batch if we have new PR events
-    if (newPRCount > 0) {
-      await batch.commit();
-      console.log(`Phase 1 complete: Created ${newPRCount} PR events for user ${userId}`);
-      
-      // Phase 2: Assign scopes for all affected activities
-      for (const activityKey of affectedActivities) {
-        await assignScopesForActivity(userId, activityKey);
-      }
-      
-      console.log(`Phase 2 complete: Assigned scopes for ${affectedActivities.size} activities`);
-    } else {
-      console.log('No PR events created');
-    }
-
-    return { totalPRsProcessed: newPRCount, activitiesProcessed: affectedActivities.size };
-  } catch (error) {
-    console.error('Error in smart PR processing:', error);
-    throw error;
-  }
-}
-
-/**
- * Initialize user PR types from top-level template collection
- * This copies the standard PR types to the user's subcollection for future customization
- */
-async function initializeUserPRTypesFromTemplate(userId: string): Promise<void> {
-  try {
-    console.log('Initializing PR types from template for user:', userId);
-    
-    const userPRTypesRef = db.collection('users').doc(userId).collection('pr_types');
-    
-    // Check if user already has PR types
-    const existingPRTypes = await userPRTypesRef.limit(1).get();
-    if (!existingPRTypes.empty) {
-      console.log('User already has PR types, skipping initialization');
-      return;
-    }
-    
-    // Get template PR types from top-level collection
-    const templatePRTypesRef = db.collection('pr_types');
-    const templateSnapshot = await templatePRTypesRef.get();
-    
-    // Copy template PR types to user subcollection
-    const batch = db.batch();
-    let copiedCount = 0;
-    
-    templateSnapshot.docs.forEach(doc => {
-      const templateData = doc.data();
-      const userPRTypeRef = userPRTypesRef.doc(doc.id);
-      
-      batch.set(userPRTypeRef, {
-        ...templateData,
-        created_at: admin.firestore.FieldValue.serverTimestamp(),
-        updated_at: admin.firestore.FieldValue.serverTimestamp()
-      });
-      
-      copiedCount++;
     });
-    
-    await batch.commit();
-    console.log(`Copied ${copiedCount} PR types from template to user ${userId}`);
-    
-  } catch (error) {
-    console.error('Error initializing user PR types from template:', error);
-    throw error;
   }
+  for (let i = 0; i < obsolete.length; i += workoutBatchSize) {
+    await lock.write(tx => {
+      for (const doc of obsolete.slice(i, i + workoutBatchSize)) tx.delete(doc.ref);
+    });
+  }
+
+  return {
+    success: true,
+    totalPRsProcessed: desired.size,
+    activitiesProcessed: activities.size,
+    newPREventsCreated: changes.filter(([id]) => !old.has(id)).length,
+  };
 }
 
-/**
- * Assign scopes for a specific activity (OPTIMIZED - only one activity)
- */
-async function assignScopesForActivity(userId: string, activityKey: string): Promise<void> {
-  try {
-    console.log(`Assigning scopes for activity ${activityKey} for user ${userId}`);
-    
-    // Get all PR events for this specific activity
-    const prEventsRef = db.collection('users').doc(userId).collection('pr_events');
-    const activityEventsSnapshot = await prEventsRef
-      .where('activity_key', '==', activityKey)
-      .orderBy('achieved_at', 'asc')
-      .get();
-    
-    const events = activityEventsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    } as any));
+export const processAllResultsForPRs = onCall<{ userId: string }>({ timeoutSeconds: workoutSyncTimeoutSeconds }, async request => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in to PB Dash first.');
+  if (request.data?.userId !== request.auth.uid) throw new HttpsError('permission-denied', 'You can only rebuild your own PBs.');
 
-    if (events.length === 0) return;
-
-    const isTimeBased = events[0].metric_type === "time";
-    
-    // Helper function to find best record
-    const findBestRecord = (eventList: any[]): any => {
-      return eventList.reduce((best: any, current: any) => {
-        if (isTimeBased) {
-          return current.metric_value < best.metric_value ? current : best;
-        } else {
-          return current.metric_value > best.metric_value ? current : best;
-        }
-      });
-    };
-
-    // Step 1: All-time scope
-    const allTimeRecord = findBestRecord(events);
-    
-    // Step 2: Season scopes
-    const eventsBySeason = events.reduce((acc: any, event: any) => {
-      if (!acc[event.season_identifier]) {
-        acc[event.season_identifier] = [];
-      }
-      acc[event.season_identifier].push(event);
-      return acc;
-    }, {} as Record<string, any[]>);
-
-    const seasonRecords: any[] = [];
-    for (const [seasonId, seasonEvents] of Object.entries(eventsBySeason)) {
-      const seasonRecord = findBestRecord(seasonEvents as any[]);
-      seasonRecords.push(seasonRecord);
-    }
-
-    // Step 3: Year scopes
-    const eventsByYear = events.reduce((acc: any, event: any) => {
-      const year = new Date(event.achieved_at).getFullYear().toString();
-      if (!acc[year]) {
-        acc[year] = [];
-      }
-      acc[year].push(event);
-      return acc;
-    }, {} as Record<string, any[]>);
-
-    const yearRecords: any[] = [];
-    for (const [year, yearEvents] of Object.entries(eventsByYear)) {
-      const yearRecord = findBestRecord(yearEvents as any[]);
-      yearRecords.push(yearRecord);
-    }
-
-    // Step 4: Update all events with their scopes
-    const batch = db.batch();
-
-    for (const event of events) {
-      const scopes: string[] = [];
-      
-      // Check if this is the all-time record
-      if (event.id === allTimeRecord.id) {
-        scopes.push("all-time");
-      }
-      
-      // Check if this is a season record
-      if (seasonRecords.some(record => record.id === event.id)) {
-        scopes.push(`season-${event.season_identifier}`);
-      }
-      
-      // Check if this is a year record
-      const eventYear = new Date(event.achieved_at).getFullYear().toString();
-      if (yearRecords.some(record => record.id === event.id)) {
-        scopes.push(`year-${eventYear}`);
-      }
-
-      // Update the event with new scopes
-      const docRef = prEventsRef.doc(event.id);
-      batch.update(docRef, {
-        pr_scope: scopes,
-        updated_at: admin.firestore.FieldValue.serverTimestamp()
-      });
-    }
-
-    await batch.commit();
-    console.log(`Updated scopes for ${events.length} events in activity ${activityKey}`);
-  } catch (error) {
-    console.error(`Error assigning scopes for activity ${activityKey}:`, error);
-    throw error;
-  }
-}
-
-// Helper functions
-function matchesPRType(result: Concept2Result, prType: any): boolean {
-  // Must match sport type
-  if (result.type !== prType.sport) {
-    return false;
-  }
-
-  // Time-based PR: exact distance match
-  if (prType.metric_type === "time" && prType.target_distance !== null) {
-    return result.distance === prType.target_distance;
-  }
-
-  // Distance-based PR: exact time match
-  if (prType.metric_type === "distance" && prType.target_time !== null) {
-    return result.time === prType.target_time;
-  }
-
-  return false;
-}
-
-function getMetricValue(result: Concept2Result, prType: any): number {
-  if (prType.metric_type === "time") {
-    return result.time;
-  } else {
-    return result.distance;
-  }
-}
-
-function getSeasonIdentifier(date: Date): string {
-  const year = date.getFullYear();
-  const month = date.getMonth(); // 0-based (0 = January)
-  
-  // If January-April, use current year
-  // If May-December, use next year
-  const seasonEndYear = month < 4 ? year : year + 1;
-  return seasonEndYear.toString();
-}
+  return withWorkoutSyncLock(request.auth.uid, async lock => {
+    await lock.write(tx => { tx.set(lock.ref, { prRepairPending: true }, { merge: true }); });
+    const result = await rebuildPersonalBests(request.auth.uid, lock);
+    await lock.write(tx => { tx.update(lock.ref, { prRepairPending: false, prAppendPending: false, prAppendStarted: false }); });
+    return result;
+  });
+});

@@ -1,15 +1,12 @@
-import { onCall } from 'firebase-functions/v2/https';
-import { defineSecret } from 'firebase-functions/params';
+import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { FieldValue } from 'firebase-admin/firestore';
 import * as admin from 'firebase-admin';
 import { Concept2Result } from './types';
 import { calculatePaceFor500m } from './paceCalculation';
+import { rebuildPersonalBests } from './processAllResultsForPRs';
+import { withWorkoutSyncLock, workoutSyncTimeoutSeconds } from './workoutSyncLock';
 
 const db = admin.firestore();
-
-// Define secrets for this function (even though not directly used, 
-// the function might need them for future enhancements)
-const concept2ClientId = defineSecret('CONCEPT2_CLIENT_ID');
-const concept2ClientSecret = defineSecret('CONCEPT2_CLIENT_SECRET');
 
 interface ProcessNewResultsAndRecalculateRequest {
   userId: string;
@@ -23,35 +20,20 @@ interface ProcessNewResultsAndRecalculateResponse {
 }
 
 export const processNewResultsAndRecalculate = onCall<ProcessNewResultsAndRecalculateRequest>(
-  {
-    // CRITICAL: Declare the secrets this function uses (for future compatibility)
-    secrets: [concept2ClientId, concept2ClientSecret]
-  },
+  { timeoutSeconds: workoutSyncTimeoutSeconds },
   async (request): Promise<ProcessNewResultsAndRecalculateResponse> => {
-    // Enhanced authentication verification
-    console.log('Authentication context:', {
-      hasAuth: !!request.auth,
-      authUid: request.auth?.uid,
-      authToken: request.auth?.token ? 'present' : 'missing'
-    });
-
-    if (!request.auth || !request.auth.uid) {
-      console.error('Authentication failed - no auth context or uid');
-      throw new Error('User must be authenticated');
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in to PB Dash first.');
+    const userId = request.auth.uid;
+    if (request.data?.userId !== userId) {
+      throw new HttpsError('permission-denied', 'You can only update your own PBs.');
     }
 
-    const { userId } = request.data;
-    
-    // Verify user can only process their own data
-    if (request.auth.uid !== userId) {
-      console.error('Permission denied - auth uid does not match requested userId', {
-        authUid: request.auth.uid,
-        requestedUserId: userId
-      });
-      throw new Error('User can only process their own data');
-    }
-
-    try {
+    return withWorkoutSyncLock(userId, async lock => {
+      if (lock.state.prRepairPending || lock.state.prAppendStarted) {
+        const result = await rebuildPersonalBests(userId, lock);
+        await lock.write(tx => { tx.update(lock.ref, { prRepairPending: false, prAppendPending: false, prAppendStarted: false }); });
+        return result;
+      }
       console.log(`Starting smart PR processing (new results + recalculation) for user: ${userId}`);
       
       // Step 1: Get all results for the user
@@ -60,6 +42,7 @@ export const processNewResultsAndRecalculate = onCall<ProcessNewResultsAndRecalc
       
       if (allResultsSnapshot.empty) {
         console.log('No results found for user');
+        await lock.write(tx => { tx.update(lock.ref, { prAppendPending: false }); });
         return {
           success: true,
           totalPRsProcessed: 0,
@@ -83,6 +66,7 @@ export const processNewResultsAndRecalculate = onCall<ProcessNewResultsAndRecalc
       console.log(`Found ${newResults.length} new results that need PR processing`);
 
       // Step 4: Process new results for PRs using smart PR logic
+      await lock.write(tx => { tx.update(lock.ref, { prAppendStarted: true }); });
       const { newPREventsCreated, activitiesProcessed } = await processNewResultsForPRs(userId, newResults);
 
       // Step 5: If we created new PR events, recalculate scopes for affected activities
@@ -117,6 +101,7 @@ export const processNewResultsAndRecalculate = onCall<ProcessNewResultsAndRecalc
       }
 
       console.log(`Smart PR processing completed for user ${userId}: ${newPREventsCreated} new PR events, ${totalPRsProcessed} total PRs across ${activitiesProcessed} activities`);
+      await lock.write(tx => { tx.update(lock.ref, { prAppendPending: false, prAppendStarted: false }); });
 
       return {
         success: true,
@@ -125,10 +110,7 @@ export const processNewResultsAndRecalculate = onCall<ProcessNewResultsAndRecalc
         newPREventsCreated
       };
 
-    } catch (error) {
-      console.error('Smart PR processing failed:', error);
-      throw new Error(`Smart PR processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    });
   }
 );
 
@@ -201,8 +183,8 @@ async function processNewResultsForPRs(userId: string, newResults: Concept2Resul
             season_identifier: seasonIdentifier,
             previous_record: null,
             pace_per_500m: paceFor500m,
-            created_at: admin.firestore.FieldValue.serverTimestamp(),
-            updated_at: admin.firestore.FieldValue.serverTimestamp()
+            created_at: FieldValue.serverTimestamp(),
+            updated_at: FieldValue.serverTimestamp()
           };
 
           // Use deterministic document ID
@@ -259,8 +241,8 @@ async function initializeUserPRTypesFromTemplate(userId: string): Promise<void> 
       
       batch.set(userPRTypeRef, {
         ...templateData,
-        created_at: admin.firestore.FieldValue.serverTimestamp(),
-        updated_at: admin.firestore.FieldValue.serverTimestamp()
+        created_at: FieldValue.serverTimestamp(),
+        updated_at: FieldValue.serverTimestamp()
       });
       
       copiedCount++;
@@ -363,7 +345,7 @@ async function assignScopesForActivity(userId: string, activityKey: string, even
       const docRef = prEventsRef.doc(event.id);
       batch.update(docRef, {
         pr_scope: scopes,
-        updated_at: admin.firestore.FieldValue.serverTimestamp()
+        updated_at: FieldValue.serverTimestamp()
       });
     }
 

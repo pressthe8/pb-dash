@@ -14,6 +14,7 @@ interface SyncResponse {
   newResultsCount: number;
   totalResultsCount: number;
   lastSyncAt: string;
+  prRepairPending?: boolean;
   error?: string;
 }
 
@@ -84,6 +85,15 @@ interface Concept2ConnectionStatus {
   lastSyncAt: string | null;
 }
 
+export interface ReconcileHistoryResult {
+  addedCount: number;
+  updatedCount: number;
+  removedCount: number;
+  totalResultsCount: number;
+  lastSyncAt: string;
+  rebuilt: boolean;
+}
+
 export class CloudFunctionsService {
   private static instance: CloudFunctionsService;
   
@@ -145,7 +155,7 @@ export class CloudFunctionsService {
   }
 
   async beginConcept2Connection(redirectUri: string) {
-    const begin = httpsCallable<{ redirectUri: string }, { state: string; authorizationUrl: string }>(
+    const begin = httpsCallable<{ redirectUri: string }, { authorizationUrl: string }>(
       functions, 'beginConcept2Connection'
     );
     return (await begin({ redirectUri })).data;
@@ -163,6 +173,15 @@ export class CloudFunctionsService {
     await httpsCallable(functions, 'disconnectConcept2')();
   }
 
+  async reconcileConcept2History(): Promise<ReconcileHistoryResult> {
+    const name = 'reconcileConcept2History';
+    try {
+      return (await httpsCallable<void, ReconcileHistoryResult>(functions, name, { timeout: 130000 })()).data;
+    } catch (error) {
+      this.handleCloudFunctionError(error, name);
+    }
+  }
+
   /**
    * Initial data load for first-time authentication (FAST - no PR processing)
    * Enhanced with better error handling and debugging
@@ -176,7 +195,7 @@ export class CloudFunctionsService {
       console.log('Functions region:', functions.app.options.projectId);
       
       // Use Firebase SDK's httpsCallable which automatically handles authentication
-      const loadFunction = httpsCallable<{ userId: string }, SyncResponse>(functions, functionName);
+      const loadFunction = httpsCallable<{ userId: string }, SyncResponse>(functions, functionName, { timeout: 130000 });
       
       console.log(`Calling ${functionName} with userId:`, userId);
       const result = await loadFunction({ userId });
@@ -199,7 +218,7 @@ export class CloudFunctionsService {
       console.log(`Triggering ${functionName} for user:`, userId);
       
       // Use Firebase SDK's httpsCallable which automatically handles authentication
-      const syncFunction = httpsCallable<{ userId: string; forceFullSync?: boolean }, IncrementalSyncResponse>(functions, functionName);
+      const syncFunction = httpsCallable<{ userId: string; forceFullSync?: boolean }, IncrementalSyncResponse>(functions, functionName, { timeout: 130000 });
       
       const result = await syncFunction({
         userId,

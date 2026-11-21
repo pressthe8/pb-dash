@@ -29,10 +29,6 @@ export async function getConcept2Tokens(uid: string): Promise<OAuthTokens> {
   return tokens;
 }
 
-export async function updateLastSyncTimestamp(uid: string, timestamp: string): Promise<void> {
-  await concept2TokenRef(uid).update({ last_sync_at: timestamp, updated_at: serverTimestamp() });
-}
-
 // Serialize token rotation across overlapping manual and background imports.
 export async function refreshConcept2Tokens(
   uid: string,

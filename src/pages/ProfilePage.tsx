@@ -35,6 +35,7 @@ export const ProfilePage: React.FC = () => {
     user, 
     concept2Connected, 
     syncNewResults, 
+    reconcileHistory,
     clearConcept2Connection,
     syncStatus,
     signOut
@@ -53,6 +54,8 @@ export const ProfilePage: React.FC = () => {
   // New state for PR reprocessing
   const [prReprocessing, setPrReprocessing] = useState(false);
   const [prReprocessComplete, setPrReprocessComplete] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
+  const [reconcileMessage, setReconcileMessage] = useState<{ text: string; error?: boolean } | null>(null);
 
   // State for PR image generation
   const [selectedSport, setSelectedSport] = useState<SportType>('rower');
@@ -239,6 +242,27 @@ export const ProfilePage: React.FC = () => {
       await loadPREvents();
     } catch (error) {
       console.error('Error syncing data:', error);
+    }
+  };
+
+  const handleReconcileHistory = async () => {
+    setReconciling(true);
+    setReconcileMessage(null);
+    try {
+      const result = await reconcileHistory();
+      const counts = [
+        result.addedCount ? 'Added ' + result.addedCount : '',
+        result.updatedCount ? 'updated ' + result.updatedCount : '',
+        result.removedCount ? 'removed ' + result.removedCount : '',
+      ].filter(Boolean);
+      const summary = counts.length ? counts.join(', ') + ' workout records.' : 'Workout history is up to date.';
+      setReconcileMessage({ text: summary + (result.rebuilt ? ' PBs recalculated.' : '') });
+      await Promise.all([loadProfile(), loadPREvents()]);
+    } catch (error) {
+      setReconcileMessage({ error: true, text: error instanceof Error && error.message !== 'REAUTH_REQUIRED'
+        ? error.message : 'Reconnect Concept2 and try again.' });
+    } finally {
+      setReconciling(false);
     }
   };
 
@@ -549,17 +573,25 @@ export const ProfilePage: React.FC = () => {
           <div className="space-y-4">
             <div>
               <h3 className="text-sm font-medium text-slate-900 mb-2">Data Management</h3>
-              <p className="text-sm text-slate-600 mb-4">Manually sync your data or recalculate personal records</p>
+              <p className="text-sm text-slate-600 mb-4">Sync new workouts as usual. Reconcile history after editing or deleting a workout in Concept2.</p>
             </div>
             
             <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={handleSyncData}
-                disabled={syncStatus !== 'idle' || !concept2Connected}
+                disabled={syncStatus !== 'idle' || !concept2Connected || prReprocessing}
                 className="flex items-center justify-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <RefreshCw className={`w-4 h-4 ${syncStatus !== 'idle' ? 'animate-spin' : ''}`} />
-                <span>{getSyncButtonText()}</span>
+                <span>{reconciling ? 'Sync New Data' : getSyncButtonText()}</span>
+              </button>
+
+              <button
+                onClick={handleReconcileHistory}
+                disabled={syncStatus !== 'idle' || !concept2Connected || prReprocessing || reconciling}
+                className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 disabled:opacity-50"
+              >
+                {reconciling ? 'Checking history…' : 'Reconcile history'}
               </button>
               
               <button
@@ -571,6 +603,12 @@ export const ProfilePage: React.FC = () => {
                 <span>{getPRButtonText()}</span>
               </button>
             </div>
+
+            {reconcileMessage && (
+              <p role={reconcileMessage.error ? 'alert' : 'status'} className={reconcileMessage.error ? 'text-sm text-red-700' : 'text-sm text-slate-700'}>
+                {reconcileMessage.text}
+              </p>
+            )}
             
             {!concept2Connected && (
               <p className="text-sm text-amber-600">Connect your Concept2 account to enable data management features</p>

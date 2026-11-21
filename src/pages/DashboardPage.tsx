@@ -222,7 +222,6 @@ export const DashboardPage: React.FC = () => {
     try {
       const redirectUri = window.location.origin + '/auth/callback';
       const attempt = await cloudFunctions.beginConcept2Connection(redirectUri);
-      sessionStorage.setItem('concept2_oauth_state', attempt.state);
       clearConnectionExpired();
       window.location.assign(attempt.authorizationUrl);
     } catch (error) {
