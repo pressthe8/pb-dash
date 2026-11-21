@@ -1,7 +1,5 @@
 import { Concept2Result } from './types';
 
-export const PR_ELIGIBILITY_VERSION = 1;
-
 export interface PRMatchTarget {
   sport: string;
   metric_type: 'time' | 'distance';

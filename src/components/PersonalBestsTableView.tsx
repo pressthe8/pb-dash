@@ -3,6 +3,7 @@ import { ChevronDown, ArrowLeft, Trophy, Clock, Zap, Target, Mountain, MapPin } 
 import { PRStats, PREvent, SportType, SPORT_MAPPING } from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
 import { PRProgressionChart } from './PRProgressionChart';
+import { formatWorkoutDate, workoutCalendar } from '../../functions/src/workoutCalendar';
 
 interface PersonalBestsTableViewProps {
   prStats: PRStats[];
@@ -34,17 +35,6 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
   const [sortField, setSortField] = useState<SortField>('achieved_at');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
-  // Helper function to get season identifier from date
-  const getSeasonIdentifier = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = date.getMonth(); // 0-based (0 = January)
-    
-    // If January-April, use current year
-    // If May-December, use next year
-    const seasonEndYear = month < 4 ? year : year + 1;
-    return seasonEndYear.toString();
-  };
-
   // Helper function to format season display
   const formatSeasonDisplay = (seasonId: string): string => {
     const endYear = parseInt(seasonId);
@@ -63,16 +53,10 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
     // Get profile setting from localStorage (set by ProfilePage)
     const profileSeasonView = localStorage.getItem('pr_view_mode') === 'season';
     
-    allPREvents.forEach(event => {
-      if (profileSeasonView) {
-        // Show seasons if profile setting is season view
-        periods.add(`season-${event.season_identifier}`);
-      } else {
-        // Show years if profile setting is year view
-        const year = new Date(event.achieved_at).getFullYear().toString();
-        periods.add(`year-${year}`);
-      }
-    });
+    for (const event of allPREvents) {
+      const calendar = workoutCalendar(event.achieved_at);
+      if (calendar) periods.add(profileSeasonView ? `season-${calendar.season}` : `year-${calendar.year}`);
+    }
 
     const sortedPeriods = Array.from(periods).sort((a, b) => {
       if (a === 'all-time') return -1;
@@ -226,12 +210,14 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
         const year = selectedFilter.split('-')[1];
         selectedRecord = allPREvents.find(event => 
           event.activity_key === stat.activity_key &&
+          workoutCalendar(event.achieved_at)?.year === year &&
           event.pr_scope.includes(`year-${year}`)
         ) || null;
       } else if (selectedFilter.startsWith('season-')) {
         const season = selectedFilter.split('-')[1];
         selectedRecord = allPREvents.find(event => 
           event.activity_key === stat.activity_key &&
+          workoutCalendar(event.achieved_at)?.season === season &&
           event.pr_scope.includes(`season-${season}`)
         ) || null;
       }
@@ -242,15 +228,6 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
       };
     }).filter(stat => stat.selectedRecord !== null); // Only show activities with records for selected period
   }, [prStats, allPREvents, selectedFilter]);
-
-  // Format date for display
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
 
   // Format period display name
   const formatPeriodDisplay = (period: string): string => {
@@ -289,8 +266,8 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
       let bValue: number | string;
 
       if (sortField === 'achieved_at') {
-        aValue = new Date(a.achieved_at).getTime();
-        bValue = new Date(b.achieved_at).getTime();
+        aValue = workoutCalendar(a.achieved_at)?.sortKey ?? '';
+        bValue = workoutCalendar(b.achieved_at)?.sortKey ?? '';
       } else {
         aValue = a.metric_value;
         bValue = b.metric_value;
@@ -446,7 +423,7 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
                           {isAllTimeRecord(attempt) && (
                             <Trophy className="w-4 h-4 text-amber-500" />
                           )}
-                          <span className="text-slate-900">{formatDate(attempt.achieved_at)}</span>
+                          <span className="text-slate-900">{formatWorkoutDate(attempt.achieved_at)}</span>
                         </div>
                       </td>
                       <td className="py-3 px-4">
@@ -565,7 +542,7 @@ export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({
                         </div>
                       </td>
                       <td className="py-3 px-2 sm:px-4 text-slate-600 text-xs sm:text-sm">
-                        {stat.selectedRecord && formatDate(stat.selectedRecord.achieved_at)}
+                        {stat.selectedRecord && formatWorkoutDate(stat.selectedRecord.achieved_at)}
                       </td>
                     </tr>
                   );

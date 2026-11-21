@@ -8,6 +8,7 @@ import {
 import { db } from '../config/firebase';
 import { PREvent, PRStats } from '../types/personalRecords';
 import { CloudFunctionsService } from './cloudFunctions';
+import { seasonEndYear, workoutCalendar } from '../../functions/src/workoutCalendar';
 
 export class PersonalRecordsService {
   private static instance: PersonalRecordsService;
@@ -29,13 +30,7 @@ export class PersonalRecordsService {
    * Rowing seasons run May 1st to April 30th, using end year as identifier
    */
   getSeasonIdentifier(date: Date): string {
-    const year = date.getFullYear();
-    const month = date.getMonth(); // 0-based (0 = January)
-    
-    // If January-April, use current year
-    // If May-December, use next year
-    const seasonEndYear = month < 4 ? year : year + 1;
-    return seasonEndYear.toString();
+    return String(seasonEndYear(date.getFullYear(), date.getMonth() + 1));
   }
 
   /**
@@ -109,8 +104,9 @@ export class PersonalRecordsService {
       
       // Create stats array in display order
       const stats: PRStats[] = [];
-      const currentYear = new Date().getFullYear().toString();
-      const currentSeason = this.getSeasonIdentifier(new Date());
+      const today = new Date();
+      const currentYear = today.getFullYear().toString();
+      const currentSeason = this.getSeasonIdentifier(today);
 
       // Reason: Process PR types in display_order sequence to ensure correct UI ordering
       for (const prType of prTypes) {
@@ -131,11 +127,11 @@ export class PersonalRecordsService {
         ) || null;
 
         const currentSeasonRecord = activityEvents.find(event => 
-          event.pr_scope.includes(`season-${currentSeason}`)
+          event.pr_scope.includes(`season-${currentSeason}`) && workoutCalendar(event.achieved_at)?.season === currentSeason
         ) || null;
 
         const currentYearRecord = activityEvents.find(event => 
-          event.pr_scope.includes(`year-${currentYear}`)
+          event.pr_scope.includes(`year-${currentYear}`) && workoutCalendar(event.achieved_at)?.year === currentYear
         ) || null;
 
         stats.push({

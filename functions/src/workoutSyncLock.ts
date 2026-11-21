@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { requireActiveAccount } from './accountDeletionState';
-import { PR_ELIGIBILITY_VERSION } from './prEligibility';
-
 export const workoutSyncTimeoutSeconds = 120;
+// Keep the existing Firestore field as a version for both eligibility and scope rules.
+export const PR_CALCULATION_VERSION = 2;
 
 export interface WorkoutSyncState {
   cursorAt?: string;
@@ -17,7 +17,7 @@ export interface WorkoutSyncState {
 }
 
 export function needsPRRebuild(state: WorkoutSyncState): boolean {
-  return Boolean(state.prRepairPending || state.prAppendStarted || state.prEligibilityVersion !== PR_ELIGIBILITY_VERSION);
+  return Boolean(state.prRepairPending || state.prAppendStarted || state.prEligibilityVersion !== PR_CALCULATION_VERSION);
 }
 
 export interface WorkoutSyncLock {

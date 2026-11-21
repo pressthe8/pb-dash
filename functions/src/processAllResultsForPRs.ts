@@ -3,8 +3,9 @@ import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { Concept2Result } from './types';
 import { calculatePaceFor500m } from './paceCalculation';
-import { matchesPRType, PR_ELIGIBILITY_VERSION, PRMatchTarget } from './prEligibility';
-import { WorkoutSyncLock, withWorkoutSyncLock, workoutSyncTimeoutSeconds } from './workoutSyncLock';
+import { matchesPRType, PRMatchTarget } from './prEligibility';
+import { workoutCalendar } from './workoutCalendar';
+import { PR_CALCULATION_VERSION, WorkoutSyncLock, withWorkoutSyncLock, workoutSyncTimeoutSeconds } from './workoutSyncLock';
 import { workoutBatchSize, workoutCollection } from './workoutStorage';
 
 interface PRType extends PRMatchTarget {
@@ -50,9 +51,11 @@ export async function rebuildPersonalBests(uid: string, lock: WorkoutSyncLock) {
     }
   }
 
-  const workouts = results.docs.map(doc => doc.data() as Concept2Result).sort((a,b) =>
-    a.date.localeCompare(b.date) || a.id - b.id
-  );
+  const workouts = results.docs.flatMap(doc => {
+    const result = doc.data() as Concept2Result;
+    const calendar = workoutCalendar(result.date);
+    return calendar ? [{ result, calendar }] : [];
+  }).sort((a, b) => a.calendar.sortKey.localeCompare(b.calendar.sortKey) || a.result.id - b.result.id);
   const desired = new Map<string, PRData>();
   const activities = new Set<string>();
 
@@ -61,12 +64,10 @@ export async function rebuildPersonalBests(uid: string, lock: WorkoutSyncLock) {
     if (!type.is_active || !type.activity_key || !['time', 'distance'].includes(type.metric_type)) continue;
 
     const best = new Map<string, PRData>();
-    for (const result of workouts) {
+    for (const { result, calendar } of workouts) {
       if (!matchesPRType(result, type)) continue;
 
-      const year = Number(result.date.slice(0, 4));
-      const month = Number(result.date.slice(5, 7));
-      const season = String(month >= 5 ? year + 1 : year);
+      const { year, season } = calendar;
       const event: PRData = {
         user_id: uid, results_id: String(result.id), activity_key: type.activity_key,
         sport: result.type, pr_scope: [], metric_type: type.metric_type,
@@ -114,7 +115,7 @@ export async function rebuildPersonalBests(uid: string, lock: WorkoutSyncLock) {
     });
   }
 
-  await lock.write(tx => { tx.update(lock.ref, { prEligibilityVersion: PR_ELIGIBILITY_VERSION }); });
+  await lock.write(tx => { tx.update(lock.ref, { prEligibilityVersion: PR_CALCULATION_VERSION }); });
 
   return {
     success: true,

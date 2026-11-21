@@ -5,6 +5,7 @@ import { Concept2Result } from './types';
 import { calculatePaceFor500m } from './paceCalculation';
 import { matchesPRType } from './prEligibility';
 import { rebuildPersonalBests } from './processAllResultsForPRs';
+import { workoutCalendar } from './workoutCalendar';
 import { needsPRRebuild, withWorkoutSyncLock, WorkoutSyncLock, workoutSyncTimeoutSeconds } from './workoutSyncLock';
 
 const db = admin.firestore();
@@ -160,11 +161,12 @@ async function processNewResultsForPRs(userId: string, newResults: Concept2Resul
 
     // Process each new result
     for (const result of newResults) {
+      const calendar = workoutCalendar(result.date);
+      if (!calendar) continue;
+
       // Check against each PR type
       for (const prType of prTypes) {
         if (matchesPRType(result, prType)) {
-          const resultDate = new Date(result.date);
-          const seasonIdentifier = getSeasonIdentifier(resultDate);
           const metricValue = getMetricValue(result, prType);
 
           // Calculate pace for this result using shared utility
@@ -180,7 +182,7 @@ async function processNewResultsForPRs(userId: string, newResults: Concept2Resul
             metric_type: prType.metric_type,
             metric_value: metricValue,
             achieved_at: result.date,
-            season_identifier: seasonIdentifier,
+            season_identifier: calendar.season,
             previous_record: null,
             pace_per_500m: paceFor500m,
             created_at: FieldValue.serverTimestamp(),
@@ -255,92 +257,38 @@ async function initializeUserPRTypesFromTemplate(userId: string, lock: WorkoutSy
  */
 async function assignScopesForActivity(userId: string, activityKey: string, events: any[], lock: WorkoutSyncLock): Promise<void> {
   try {
-    if (events.length === 0) return;
+    const sortedEvents = events.flatMap(event => {
+      const calendar = workoutCalendar(event.achieved_at);
+      return calendar ? [{ event, calendar }] : [];
+    }).sort((a, b) => a.calendar.sortKey.localeCompare(b.calendar.sortKey) ||
+      Number(a.event.results_id) - Number(b.event.results_id));
+    if (sortedEvents.length === 0) return;
 
-    // Sort events chronologically (oldest first)
-    const sortedEvents = [...events].sort((a: any, b: any) => 
-      new Date(a.achieved_at).getTime() - new Date(b.achieved_at).getTime()
-    );
+    const isTimeBased = sortedEvents[0].event.metric_type === 'time';
+    const bestByScope = new Map<string, typeof events[number]>();
+    const scopedEvents = sortedEvents.map(({ event, calendar }) => ({
+      event,
+      season: calendar.season,
+      scopes: ['all-time', 'season-' + calendar.season, 'year-' + calendar.year],
+    }));
 
-    const isTimeBased = sortedEvents[0].metric_type === "time";
-    
-    // Helper function to find best record
-    const findBestRecord = (eventList: any[]): any => {
-      return eventList.reduce((best: any, current: any) => {
-        if (isTimeBased) {
-          // For time-based: lower is better
-          return current.metric_value < best.metric_value ? current : best;
-        } else {
-          // For distance-based: higher is better
-          return current.metric_value > best.metric_value ? current : best;
-        }
-      });
-    };
-
-    // Step 1: All-time scope
-    const allTimeRecord = findBestRecord(sortedEvents);
-    
-    // Step 2: Season scopes
-    const eventsBySeason = sortedEvents.reduce((acc: any, event: any) => {
-      if (!acc[event.season_identifier]) {
-        acc[event.season_identifier] = [];
+    for (const { event, scopes } of scopedEvents) {
+      for (const scope of scopes) {
+        const previous = bestByScope.get(scope);
+        if (!previous || (isTimeBased
+          ? event.metric_value < previous.metric_value
+          : event.metric_value > previous.metric_value)) bestByScope.set(scope, event);
       }
-      acc[event.season_identifier].push(event);
-      return acc;
-    }, {} as Record<string, any[]>);
-
-    const seasonRecords: any[] = [];
-    for (const [seasonId, seasonEvents] of Object.entries(eventsBySeason)) {
-      const seasonRecord = findBestRecord(seasonEvents as any[]);
-      seasonRecords.push(seasonRecord);
     }
 
-    // Step 3: Year scopes
-    const eventsByYear = sortedEvents.reduce((acc: any, event: any) => {
-      const year = new Date(event.achieved_at).getFullYear().toString();
-      if (!acc[year]) {
-        acc[year] = [];
-      }
-      acc[year].push(event);
-      return acc;
-    }, {} as Record<string, any[]>);
-
-    const yearRecords: any[] = [];
-    for (const [year, yearEvents] of Object.entries(eventsByYear)) {
-      const yearRecord = findBestRecord(yearEvents as any[]);
-      yearRecords.push(yearRecord);
-    }
-
-    // Step 4: Update all events with their scopes
     const prEventsRef = db.collection('users').doc(userId).collection('pr_events');
-
-    const updates = [];
-    for (const event of sortedEvents) {
-      const scopes: string[] = [];
-      
-      // Check if this is the all-time record
-      if (event.id === allTimeRecord.id) {
-        scopes.push("all-time");
-      }
-      
-      // Check if this is a season record
-      if (seasonRecords.some(record => record.id === event.id)) {
-        scopes.push(`season-${event.season_identifier}`);
-      }
-      
-      // Check if this is a year record
-      const eventYear = new Date(event.achieved_at).getFullYear().toString();
-      if (yearRecords.some(record => record.id === event.id)) {
-        scopes.push(`year-${eventYear}`);
-      }
-
-      // Update the event with new scopes
-      updates.push({ ref: prEventsRef.doc(event.id), scopes });
-    }
-
     await lock.write(tx => {
-      for (const { ref, scopes } of updates) {
-        tx.update(ref, { pr_scope: scopes, updated_at: FieldValue.serverTimestamp() });
+      for (const { event, season, scopes } of scopedEvents) {
+        tx.update(prEventsRef.doc(event.id), {
+          pr_scope: scopes.filter(scope => bestByScope.get(scope)?.id === event.id),
+          season_identifier: season,
+          updated_at: FieldValue.serverTimestamp(),
+        });
       }
     });
     console.log(`Updated scopes for ${sortedEvents.length} events in activity ${activityKey}`);
@@ -356,14 +304,4 @@ function getMetricValue(result: Concept2Result, prType: any): number {
   } else {
     return result.distance;
   }
-}
-
-function getSeasonIdentifier(date: Date): string {
-  const year = date.getFullYear();
-  const month = date.getMonth(); // 0-based (0 = January)
-  
-  // If January-April, use current year
-  // If May-December, use next year
-  const seasonEndYear = month < 4 ? year : year + 1;
-  return seasonEndYear.toString();
 }

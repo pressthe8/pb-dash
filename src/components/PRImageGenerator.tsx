@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { CloudFunctionsService } from '../services/cloudFunctions';
 import { PRStats, SportType, SPORT_MAPPING } from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
+import { formatWorkoutDate, seasonEndYear } from '../../functions/src/workoutCalendar';
 
 interface PRImageGeneratorProps {
   prStats: PRStats[];
@@ -79,11 +80,8 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
   // Get current season identifier
   const getCurrentSeason = (): string => {
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth(); // 0-based
-    const seasonEndYear = month < 4 ? year : year + 1;
-    const seasonStartYear = seasonEndYear - 1;
-    return `${seasonStartYear.toString().slice(-2)}/${seasonEndYear.toString().slice(-2)}`;
+    const endYear = seasonEndYear(now.getFullYear(), now.getMonth() + 1);
+    return `${String(endYear - 1).slice(-2)}/${String(endYear).slice(-2)}`;
   };
 
   // DYNAMIC FILTERING: Get only events that have data
@@ -115,11 +113,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
 
   // Format date as DD/MM/YY
   const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = date.getFullYear().toString().slice(-2);
-    return `${day}/${month}/${year}`;
+    return formatWorkoutDate(dateString, 'en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
   };
 
   // Get stat for specific event
