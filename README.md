@@ -2,6 +2,13 @@
 
 A modern, responsive web application that connects to your Concept2 Logbook account to visualize and analyze your rowing performance data. Built with React, TypeScript, Firebase, and the Concept2 API.
 
+## Project documentation
+
+- [Architecture](architecture/README.md) explains the frontend routes, Concept2 connection, sync and Firestore model.
+- [Task history](TASK.md) records completed work and verification.
+- [Pending work](PENDING.md) tracks open items.
+- [UI archive](archive/README.md) contains the previous frontend snapshot.
+
 ## Features
 
 ### 🚣 Concept2 Integration
@@ -38,7 +45,7 @@ A modern, responsive web application that connects to your Concept2 Logbook acco
 1. **Firebase Project**
    - Create a new Firebase project at [Firebase Console](https://console.firebase.google.com/)
    - Enable Firestore Database
-   - Enable Authentication (Google sign-in provider)
+   - Enable Firebase Authentication with Google and Email/Password providers
    - Enable Cloud Functions
    - **🚨 CRITICAL**: Add authorized domains for your development environment
 
@@ -55,23 +62,19 @@ A modern, responsive web application that connects to your Concept2 Logbook acco
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd concept2-rowing-dashboard
+   cd pb-dash
    ```
 
 2. **Install dependencies**
    Use Node.js 22 for the Functions build.
 
    ```bash
-   npm install
+   npm ci
    npm --prefix functions ci
    ```
 
 3. **Environment Configuration**
-   ```bash
-   cp .env.example .env
-   ```
-   
-   Fill in your environment variables:
+   Create a `.env.local` file in the repository root with your Firebase web configuration:
    ```env
    # Firebase Configuration
    VITE_FIREBASE_API_KEY=your_firebase_api_key
@@ -88,27 +91,9 @@ A modern, responsive web application that connects to your Concept2 Logbook acco
 
    Set up Secret Manager for your target project and follow the [Functions deployment instructions](#firebase-functions-deployment).
 
-5. **🚨 CRITICAL: Configure Firebase Authorized Domains**
-   
-   **For WebContainer/Bolt environments**, you need to add your specific WebContainer URL:
-   
-   1. **Find your current URL**: Look at your browser address bar (e.g., `https://abc123-5173.preview.webcontainer.io`)
-   2. **Copy the domain part**: `abc123-5173.preview.webcontainer.io` (without `https://` and without the path)
-   3. **Add to Firebase**:
-      - Go to [Firebase Console](https://console.firebase.google.com/)
-      - Select your project
-      - Navigate to **Authentication** → **Settings** tab
-      - Scroll down to **"Authorized domains"**
-      - Click **"Add domain"**
-      - Enter your WebContainer domain: `abc123-5173.preview.webcontainer.io`
-      - Click **"Add"**
-   
-   **Example WebContainer domains**:
-   - `abc123-5173.preview.webcontainer.io`
-   - `def456-5173.preview.webcontainer.io`
-   - `xyz789-5173.preview.webcontainer.io`
-   
-   **Note**: Each WebContainer session gets a unique URL, so you may need to update this when starting a new session.
+5. **Configure authorized domains**
+
+   Add the development hostname, such as `localhost`, in Firebase Authentication settings. Register the full matching callback URL, including the port and `/auth/callback`, with Concept2. The app builds that URL from the current origin.
 
 6. **Start development server**
    ```bash
@@ -193,7 +178,7 @@ This error occurs when your development domain is not authorized in Firebase:
 
 ### Firebase Functions Deployment
 
-Use Node.js 22 and a current [Firebase CLI](https://firebase.google.com/docs/cli). The GitHub Actions workflow installs dependencies and builds the Functions package. Deploy manually from the repository root.
+Use Node.js 22 and a current [Firebase CLI](https://firebase.google.com/docs/cli). The GitHub Actions workflow installs dependencies, builds the Functions package and runs its tests. Deploy manually from the repository root.
 
 For a new target project, set `CONCEPT2_CLIENT_ID`, `CONCEPT2_CLIENT_SECRET`, and `SLACK_WEBHOOK_URL` in that project's Secret Manager. Use `firebase functions:secrets:set SECRET_NAME --project PROJECT_ID` to enter a value at the prompt. Existing projects can reuse their configured secrets for a runtime upgrade.
 
@@ -257,6 +242,19 @@ Ensure all environment variables are set in your Netlify dashboard:
 - Update your Firebase authorized domains to include your production domain: `your-domain.com`
 - Confirm `https://pbdash.pressthe8.com/auth/callback` is registered in the Concept2 Developer Portal.
 - Ensure Firebase Functions have the Concept2 credentials configured in production
+
+## Verification
+
+From the repository root:
+
+```bash
+npx tsc --noEmit -p tsconfig.app.json
+npm run build
+npm --prefix functions run build
+npm --prefix functions test
+```
+
+`npm run lint` runs repository-wide ESLint. See [pending work](PENDING.md) for known issues. For browser smoke checks, use a development Firebase project and check both desktop and mobile layouts. The standard dev server uses the Firebase project configured in `.env.local`.
 
 ## Usage
 
