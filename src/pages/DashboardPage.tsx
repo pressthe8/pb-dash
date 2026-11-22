@@ -1,31 +1,41 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { usePersonalRecords } from '../hooks/usePersonalRecords';
 import { FirebaseService } from '../services/firebaseService';
 import { CloudFunctionsService } from '../services/cloudFunctions';
 import { DataCacheService } from '../services/dataCacheService';
 import { LoadingSpinner } from '../components/LoadingSpinner';
-import { PersonalRecordsCard } from '../components/PersonalRecordsCard';
+import { TrainingRadar, WakeArt } from '../components/WorkoutArt';
 import { PersonalBestsTableView } from '../components/PersonalBestsTableView';
 import { StoredResult } from '../types/concept2';
 import { PREvent, SportType, SPORT_MAPPING, UserProfile } from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
 import { asErgSport } from '../../functions/src/workoutSport';
 import { REVIEW_PATH, REVIEW_TITLE } from '../features/rowingReview/reviewConfig';
-import { Waves, TrendingUp, Link, AlertTriangle, Ruler, Clock, Bike, Mountain } from 'lucide-react';
+import { Activity, AlertCircle, ArrowRight, ArrowUpRight, Bike, Clock3, Link2, Mountain, Ruler, Waves } from 'lucide-react';
 
-// Set to false to preview the legacy PB cards during development.
-const useNewTableView = true;
+const sportIcons = { rower: Waves, bike: Bike, skierg: Mountain };
+const sports = ['rower', 'bike', 'skierg'] as const;
+const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
 
-function RowingReviewLink() {
+function ReviewCard() {
   return (
-    <RouterLink to={REVIEW_PATH}
-      className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900">
-      <Waves className="h-4 w-4" aria-hidden="true" />
-      {REVIEW_TITLE}
-    </RouterLink>
+    <Link className="pb-review-card" to={REVIEW_PATH}>
+      <WakeArt />
+      <div className="pb-review-card-copy">
+        <span className="pb-label">{REVIEW_TITLE}</span>
+        <h2>Your year<br /><em>on the erg.</em></h2>
+      </div>
+      <span className="pb-review-card-link">Open review <ArrowUpRight size={17} aria-hidden="true" /></span>
+    </Link>
   );
+}
+
+function measureDistance(meters: number) {
+  return meters >= 1000
+    ? { value: numberFormat.format(meters / 1000), unit: 'km' }
+    : { value: numberFormat.format(meters), unit: 'm' };
 }
 
 interface DashboardStats {
@@ -47,6 +57,7 @@ export const DashboardPage: React.FC = () => {
   const [allResults, setAllResults] = useState<StoredResult[]>([]);
   const [allPREvents, setAllPREvents] = useState<PREvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dataError, setDataError] = useState(false);
   const hasLoadedDataRef = useRef(false);
 
   // Sport filtering state
@@ -79,14 +90,14 @@ export const DashboardPage: React.FC = () => {
 
   // Reason: Load sport preference from session storage and profile
   useEffect(() => {
-    if (!hasLoadedSportPreference && allResults.length > 0) {
+    if (!hasLoadedSportPreference && concept2Connected && !loading && !dataError) {
       const sessionSport = asErgSport(localStorage.getItem('dashboard_sport_filter'));
       const defaultSport = determineDefaultSport(allResults, asErgSport(userProfile?.default_sport));
       
       setSelectedSport(sessionSport || defaultSport);
       setHasLoadedSportPreference(true);
     }
-  }, [allResults, userProfile, hasLoadedSportPreference, determineDefaultSport]);
+  }, [allResults, userProfile, concept2Connected, loading, dataError, hasLoadedSportPreference, determineDefaultSport]);
 
   // Reason: Persist sport selection to session storage
   useEffect(() => {
@@ -139,6 +150,7 @@ export const DashboardPage: React.FC = () => {
 
     try {
       setLoading(true);
+      setDataError(false);
       console.log('Loading dashboard data for connected user');
       
       // Load user profile for sport preference
@@ -158,7 +170,7 @@ export const DashboardPage: React.FC = () => {
       console.log(`Dashboard data loaded and cached: ${results.length} total results, ${prEvents.length} PR events`);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
-      // Don't show error to user, just log it
+      setDataError(true);
     } finally {
       setLoading(false);
     }
@@ -202,214 +214,110 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
-  const formatDistance = (meters: number) => {
-    if (meters >= 1000) {
-      return `${(meters / 1000).toFixed(1)}km`;
-    }
-    return `${meters}m`;
-  };
-
-  // Get sport icon - Updated to use Waves for rowing
-  const getSportIcon = (sport: SportType) => {
-    switch (sport) {
-      case 'rower':
-        return <Waves className="w-5 h-5" />;
-      case 'bike':
-        return <Bike className="w-5 h-5" />;
-      case 'skierg':
-        return <Mountain className="w-5 h-5" />;
-      default:
-        return <Waves className="w-5 h-5" />;
-    }
-  };
-
-  // Reason: Show loading state only when we're actually loading data for a connected user
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
-
   if (!concept2Connected) {
     return (
-      <div className="max-w-2xl mx-auto text-center">
-        <div className="mb-5 flex justify-end"><RowingReviewLink /></div>
-        <div className="bg-white rounded-2xl p-8 shadow-lg border border-slate-200">
-          <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-teal-500 rounded-full 
-                         flex items-center justify-center mx-auto mb-6">
-            <Link className="w-8 h-8 text-white" />
-          </div>
-          
-          <h2 className="text-2xl font-bold text-slate-900 mb-4">
-            {connectionExpired ? 'Reconnect Your Concept2 Account' : 'Connect Your Concept2 Account'}
-          </h2>
-          
-          <p className="text-slate-600 mb-8">
-            {connectionExpired 
-              ? 'Your Concept2 connection has expired. Please reconnect to continue viewing your activity data and analytics.'
-              : 'To view your activity data and analytics, you need to connect your Concept2 Logbook account. This allows us to securely fetch your workout history and provide detailed insights.'
-            }
-          </p>
-          
-          <button
-            onClick={handleConnectConcept2}
-            disabled={connecting}
-            className="bg-gradient-to-r from-blue-500 to-teal-500 text-white font-semibold 
-                     py-3 px-8 rounded-xl hover:from-blue-600 hover:to-teal-600 
-                     transition-all duration-200 transform hover:scale-105
-                     flex items-center space-x-3 mx-auto"
-          >
-            <Link className="w-5 h-5" />
-            <span>{connecting ? 'Connecting…' : connectionExpired ? 'Reconnect to Concept2' : 'Connect to Concept2'}</span>
-          </button>
-          
-          {connectionError && <p role="alert" className="mt-4 text-sm text-red-700">{connectionError}</p>}
-
-          <p className="text-sm text-slate-500 mt-4">
-            You'll be redirected to Concept2 to authorize the connection.
-          </p>
+      <div className="pb-dashboard">
+        <div className="pb-dash-grid">
+          <section className="pb-connect pb-grid-surface">
+            <span className="pb-connect-icon"><Link2 size={24} aria-hidden="true" /></span>
+            <div>
+              <h1>{connectionExpired ? 'Reconnect your Logbook.' : 'Connect your Logbook.'}</h1>
+              <p>{connectionExpired
+                ? 'Your Concept2 connection has expired. Reconnect to see your training and sync new workouts.'
+                : 'Link your Concept2 account to import your workouts and find your personal bests.'}</p>
+            </div>
+            <button type="button" className="pb-button pb-primary" onClick={handleConnectConcept2} disabled={connecting}>
+              {connecting ? 'Connecting…' : connectionExpired ? 'Reconnect to Concept2' : 'Connect to Concept2'}
+              {connecting ? <LoadingSpinner size="sm" /> : <ArrowRight size={19} aria-hidden="true" />}
+            </button>
+            {connectionError
+              ? <p className="pb-feedback pb-error" role="alert">{connectionError}</p>
+              : <p className="pb-connect-note">You’ll approve the connection on Concept2.</p>}
+          </section>
+          <ReviewCard />
         </div>
       </div>
     );
   }
 
+  if ((loading || (!dataError && !hasLoadedSportPreference)) && syncStatus === 'idle') {
+    return <div className="pb-page-status" role="status"><LoadingSpinner size="lg" /> Loading training data…</div>;
+  }
+
+  const metrics = [
+    { label: 'Total workouts', icon: Activity, value: numberFormat.format(filteredStats.totalWorkouts), unit: '' },
+    { label: 'Total distance', icon: Ruler, ...measureDistance(filteredStats.totalDistance) },
+    { label: 'Total time', icon: Clock3, value: formatTime(filteredStats.totalTime), unit: '' },
+    { label: 'Average distance', icon: Ruler, ...measureDistance(filteredStats.averageDistance) },
+  ];
+
   return (
-    <>
-      {/* Processing Overlay */}
+    <div className="pb-dashboard">
       {syncStatus !== 'idle' && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-white rounded-2xl p-8 shadow-2xl border border-slate-200 max-w-md w-full mx-4">
-            <div className="text-center">
-              <div className="mb-6">
-                <LoadingSpinner size="lg" className="mx-auto text-blue-500" />
-              </div>
-              
-              <h3 className="text-xl font-semibold text-slate-900 mb-2">
-                {syncStatus === 'syncing' ? 'Syncing Data' : 'Processing Records'}
-              </h3>
-              
-              <p className="text-slate-600">
-                {syncStatus === 'syncing' 
-                  ? 'Fetching your latest workouts from Concept2...'
-                  : 'Analyzing new workouts for personal records...'
-                }
-              </p>
-            </div>
+        <div className="pb-overlay">
+          <div className="pb-status-card" role="status">
+            <LoadingSpinner size="lg" />
+            <h2>{syncStatus === 'syncing' ? 'Syncing workouts' : 'Updating personal bests'}</h2>
+            <p>{syncStatus === 'syncing' ? 'Fetching your latest workouts from Concept2…' : 'Checking your new workouts for records…'}</p>
           </div>
         </div>
       )}
 
-      <div className="space-y-8">
-        <div className="flex justify-end"><RowingReviewLink /></div>
-        {/* Sport Filter - Full Width with Icons */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <div className="grid grid-cols-3 gap-4">
-            {(['rower', 'bike', 'skierg'] as SportType[]).map((sport) => (
-              <button
-                key={sport}
-                onClick={() => setSelectedSport(sport)}
-                className={`flex items-center justify-center space-x-3 py-4 px-6 rounded-xl font-semibold transition-all duration-200 ${
-                  selectedSport === sport
-                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg transform scale-105'
-                    : 'bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                }`}
-              >
-                <div className={`${selectedSport === sport ? 'text-white' : 'text-slate-500'}`}>
-                  {getSportIcon(sport)}
-                </div>
-                <span className="text-lg">{SPORT_MAPPING[sport]}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* PR Error Alert */}
-        {prError && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-            <div className="flex items-start space-x-3">
-              <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5" />
-              <div className="flex-1">
-                <h3 className="text-sm font-medium text-amber-800">Personal Records Error</h3>
-                <p className="text-sm text-amber-700 mt-1">{prError}</p>
-              </div>
-              <button
-                onClick={() => window.location.reload()}
-                className="text-amber-400 hover:text-amber-600"
-              >
-                <span className="sr-only">Dismiss</span>
-                ×
-              </button>
+      <div className="pb-dash-grid">
+        <section className="pb-training pb-grid-surface">
+          <div className="pb-training-copy">
+            <h1>Your training.</h1>
+            <div className="pb-switch pb-sport" role="group" aria-label="Filter training by machine">
+              {sports.map(sport => {
+                const Icon = sportIcons[sport];
+                return (
+                  <button type="button" key={sport} aria-pressed={selectedSport === sport}
+                    onClick={() => { setSelectedSport(sport); setHasLoadedSportPreference(true); }}>
+                    <Icon size={17} aria-hidden="true" /> {SPORT_MAPPING[sport]}
+                  </button>
+                );
+              })}
             </div>
           </div>
-        )}
-
-        {/* Stats Cards - Updated for mobile 2x2 grid - Now showing filtered stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-          <div className="bg-white rounded-xl p-4 lg:p-6 shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between mb-3 lg:mb-4">
-              <div className="p-1.5 lg:p-2 bg-blue-100 rounded-lg">
-                <TrendingUp className="w-4 h-4 lg:w-6 lg:h-6 text-blue-600" />
-              </div>
-              <span className="text-lg lg:text-2xl font-bold text-slate-900">{filteredStats.totalWorkouts}</span>
-            </div>
-            <h3 className="text-xs lg:text-sm font-medium text-slate-600">Total Workouts</h3>
-          </div>
-
-          <div className="bg-white rounded-xl p-4 lg:p-6 shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between mb-3 lg:mb-4">
-              <div className="p-1.5 lg:p-2 bg-green-100 rounded-lg">
-                <Ruler className="w-4 h-4 lg:w-6 lg:h-6 text-green-600" />
-              </div>
-              <span className="text-lg lg:text-2xl font-bold text-slate-900">
-                {formatDistance(filteredStats.totalDistance)}
-              </span>
-            </div>
-            <h3 className="text-xs lg:text-sm font-medium text-slate-600">Total Distance</h3>
-          </div>
-
-          <div className="bg-white rounded-xl p-4 lg:p-6 shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between mb-3 lg:mb-4">
-              <div className="p-1.5 lg:p-2 bg-purple-100 rounded-lg">
-                <Clock className="w-4 h-4 lg:w-6 lg:h-6 text-purple-600" />
-              </div>
-              <span className="text-lg lg:text-2xl font-bold text-slate-900">
-                {formatTime(filteredStats.totalTime)}
-              </span>
-            </div>
-            <h3 className="text-xs lg:text-sm font-medium text-slate-600">Total Time</h3>
-          </div>
-
-          <div className="bg-white rounded-xl p-4 lg:p-6 shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between mb-3 lg:mb-4">
-              <div className="p-1.5 lg:p-2 bg-orange-100 rounded-lg">
-                <Ruler className="w-4 h-4 lg:w-6 lg:h-6 text-orange-600" />
-              </div>
-              <span className="text-lg lg:text-2xl font-bold text-slate-900">
-                {formatDistance(Math.round(filteredStats.averageDistance))}
-              </span>
-            </div>
-            <h3 className="text-xs lg:text-sm font-medium text-slate-600">Average Distance</h3>
-          </div>
-        </div>
-
-        {/* Personal Bests Section - Toggle between old and new views - Now using filtered data */}
-        {useNewTableView ? (
-          <PersonalBestsTableView 
-            prStats={filteredPRStats} 
-            loading={prLoading} 
-            allPREvents={filteredPREvents}
-            selectedSport={selectedSport}
-          />
-        ) : (
-          <PersonalRecordsCard 
-            prStats={filteredPRStats} 
-            loading={prLoading} 
-            allPREvents={filteredPREvents} 
-          />
-        )}
+          {!dataError && <TrainingRadar results={filteredResults} />}
+        </section>
+        <ReviewCard />
       </div>
-    </>
+
+      {dataError && (
+        <div className="pb-feedback pb-error pb-dash-feedback" role="alert">
+          <AlertCircle size={18} aria-hidden="true" />
+          <span>We couldn’t load your workout history.</span>
+          <button type="button" className="pb-text-button" onClick={loadDashboardData}>Try again</button>
+        </div>
+      )}
+
+      {!dataError && <section className="pb-history" aria-labelledby="pb-history-title">
+        <div className="pb-section-heading">
+          <h2 id="pb-history-title">All-time totals</h2>
+          <span className="pb-label">{SPORT_MAPPING[selectedSport]}</span>
+        </div>
+        <dl className="pb-metrics">
+          {metrics.map(({ label, icon: Icon, value, unit }) => (
+            <div className="pb-metric" key={label}>
+              <dt><Icon size={16} aria-hidden="true" /> {label}</dt>
+              <dd>{value}{unit && <span> {unit}</span>}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>}
+
+      {prError && (
+        <div className="pb-feedback pb-error pb-dash-feedback" role="alert">
+          <AlertCircle size={18} aria-hidden="true" />
+          <span>We couldn’t load your personal bests. {prError}</span>
+          <button type="button" className="pb-text-button" onClick={() => window.location.reload()}>Reload</button>
+        </div>
+      )}
+      {!dataError && !prError && (
+        <PersonalBestsTableView key={selectedSport} prStats={filteredPRStats} loading={prLoading}
+          allPREvents={filteredPREvents} selectedSport={selectedSport} seasonView={userProfile?.season_view} />
+      )}
+    </div>
   );
 };

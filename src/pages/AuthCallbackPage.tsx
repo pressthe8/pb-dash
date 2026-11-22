@@ -5,7 +5,8 @@ import { CloudFunctionsService } from '../services/cloudFunctions';
 import { FirebaseService } from '../services/firebaseService';
 import { DataCacheService } from '../services/dataCacheService';
 import { LoadingSpinner } from '../components/LoadingSpinner';
-import { CheckCircle, AlertCircle } from 'lucide-react';
+import { CheckCircle, AlertCircle, ArrowRight } from 'lucide-react';
+import { AppFooter, Brand } from '../components/Brand';
 
 export const AuthCallbackPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -15,6 +16,9 @@ export const AuthCallbackPage: React.FC = () => {
   const [message, setMessage] = useState('Connecting your account...');
   
   const hasProcessed = useRef(false);
+  const redirect = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => () => clearTimeout(redirect.current), []);
 
   const cloudFunctions = CloudFunctionsService.getInstance();
   const firebaseService = FirebaseService.getInstance();
@@ -190,8 +194,8 @@ export const AuthCallbackPage: React.FC = () => {
       }
       
       // Redirect to dashboard after a short delay
-      setTimeout(() => {
-        navigate('/dashboard');
+      redirect.current = setTimeout(() => {
+        navigate('/dashboard', { replace: true });
       }, 2000);
       
     } catch (error) {
@@ -216,72 +220,27 @@ export const AuthCallbackPage: React.FC = () => {
     }
   };
 
-  const getStatusIcon = () => {
-    switch (status) {
-      case 'loading':
-        return <LoadingSpinner size="lg" className="text-blue-500" />;
-      case 'success':
-        return <CheckCircle className="w-16 h-16 text-green-500" />;
-      case 'error':
-        return <AlertCircle className="w-16 h-16 text-red-500" />;
-    }
-  };
-
-  const getStatusColor = () => {
-    switch (status) {
-      case 'loading':
-        return 'text-blue-600';
-      case 'success':
-        return 'text-green-600';
-      case 'error':
-        return 'text-red-600';
-    }
-  };
+  const title = status === 'loading' ? 'Connecting your Logbook' : status === 'success' ? 'Logbook connected' : 'Connection interrupted';
+  const StatusIcon = status === 'success' ? CheckCircle : AlertCircle;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        <div className="bg-white rounded-2xl p-8 shadow-lg border border-slate-200 text-center">
-          <div className="mb-6">
-            {getStatusIcon()}
+    <div className="pb-app">
+      <header className="pb-header"><div className="pb-wrap pb-mast"><Brand to="/dashboard" /></div></header>
+      <main className="pb-wrap pb-callback">
+        <section className="pb-status-card pb-grid-surface" aria-labelledby="callback-title">
+          <div className="pb-connect-icon" data-status={status}>
+            {status === 'loading' ? <LoadingSpinner size="lg" /> : <StatusIcon size={27} aria-hidden="true" />}
           </div>
-          
-          <h2 className="text-2xl font-bold text-slate-900 mb-4">
-            {status === 'loading' && 'Connecting Account'}
-            {status === 'success' && 'Connection Successful!'}
-            {status === 'error' && 'Connection Failed'}
-          </h2>
-          
-          <p className={`${getStatusColor()} mb-6`}>
-            {message}
-          </p>
-          
-          {status === 'success' && (
-            <p className="text-sm text-slate-500">
-              Redirecting to your dashboard...
-            </p>
+          <h1 id="callback-title">{title}</h1>
+          <p role={status === 'error' ? 'alert' : 'status'}>{message}</p>
+          {status !== 'loading' && (
+            <button type="button" className="pb-button pb-primary" onClick={() => navigate(user ? '/dashboard' : '/login', { replace: true })}>
+              {user ? 'Go to dashboard' : 'Go to sign in'} <ArrowRight size={17} aria-hidden="true" />
+            </button>
           )}
-          
-          {status === 'error' && (
-            <div className="space-y-4">
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="w-full bg-blue-500 text-white py-3 px-6 rounded-xl 
-                         hover:bg-blue-600 transition-colors duration-200"
-              >
-                Go to Dashboard
-              </button>
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="w-full bg-slate-100 text-slate-700 py-3 px-6 rounded-xl 
-                         hover:bg-slate-200 transition-colors duration-200"
-              >
-                Try Again
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+        </section>
+      </main>
+      <AppFooter />
     </div>
   );
 };
