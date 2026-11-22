@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { usePersonalRecords } from '../hooks/usePersonalRecords';
 import { FirebaseService } from '../services/firebaseService';
@@ -11,10 +12,21 @@ import { StoredResult } from '../types/concept2';
 import { PREvent, SportType, SPORT_MAPPING, UserProfile } from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
 import { asErgSport } from '../../functions/src/workoutSport';
+import { REVIEW_PATH, REVIEW_YEAR } from '../features/rowingReview/reviewConfig';
 import { Waves, TrendingUp, Link, AlertTriangle, Ruler, Clock, Bike, Mountain } from 'lucide-react';
 
 // Set to false to preview the legacy PB cards during development.
 const useNewTableView = true;
+
+function RowingReviewLink() {
+  return (
+    <RouterLink to={REVIEW_PATH}
+      className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900">
+      <Waves className="h-4 w-4" aria-hidden="true" />
+      {REVIEW_YEAR} Rowing Review
+    </RouterLink>
+  );
+}
 
 interface DashboardStats {
   totalWorkouts: number;
@@ -223,6 +235,7 @@ export const DashboardPage: React.FC = () => {
   if (!concept2Connected) {
     return (
       <div className="max-w-2xl mx-auto text-center">
+        <div className="mb-5 flex justify-end"><RowingReviewLink /></div>
         <div className="bg-white rounded-2xl p-8 shadow-lg border border-slate-200">
           <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-teal-500 rounded-full 
                          flex items-center justify-center mx-auto mb-6">
@@ -289,6 +302,7 @@ export const DashboardPage: React.FC = () => {
       )}
 
       <div className="space-y-8">
+        <div className="flex justify-end"><RowingReviewLink /></div>
         {/* Sport Filter - Full Width with Icons */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
           <div className="grid grid-cols-3 gap-4">

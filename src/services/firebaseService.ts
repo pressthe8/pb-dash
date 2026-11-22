@@ -2,8 +2,10 @@ import {
     collection, 
     doc, 
     getDocs, 
+    getDocsFromServer,
     query, 
     orderBy, 
+    where,
     limit,
     setDoc,
     getDoc
@@ -142,6 +144,23 @@ import {
         console.error('Error in getAllResults:', error);
         throw error;
       }
+    }
+
+    async getResultsInDateRange(
+      firebaseUserId: string,
+      start: string,
+      endExclusive: string
+    ): Promise<Pick<StoredResult, 'date' | 'type' | 'distance' | 'time'>[]> {
+      const results = collection(db, 'users', firebaseUserId, 'results');
+      const snapshot = await getDocsFromServer(query(
+        results,
+        where('date', '>=', start),
+        where('date', '<', endExclusive)
+      ));
+      return snapshot.docs.map(result => {
+        const { date, type, distance, time } = result.data();
+        return { date, type, distance, time };
+      });
     }
 
     /**
