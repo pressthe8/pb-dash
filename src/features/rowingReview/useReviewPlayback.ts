@@ -62,7 +62,6 @@ export function useReviewPlayback(chapters: readonly Chapter[]) {
   }, [chapters, playback.playing]);
 
   const chapter = chapters[playback.index];
-  const finished = playback.index === chapters.length - 1 && playback.elapsed >= chapter.duration;
 
   const jump = useCallback((index: number, animate = playback.playing) => {
     if (index >= 0 && index < chapters.length) select(index, animate);
@@ -83,21 +82,5 @@ export function useReviewPlayback(chapters: readonly Chapter[]) {
     return () => window.removeEventListener('keydown', onKey);
   }, [chapters.length, jump, playback.index]);
 
-  function toggle() {
-    if (finished) {
-      select(0, true);
-      return;
-    }
-    setPlayback(state => ({
-      ...state,
-      playing: !state.playing && !reducedMotion,
-      elapsed: !state.playing && state.elapsed >= chapter.duration ? 0 : state.elapsed,
-    }));
-  }
-
-  function pause() {
-    setPlayback(state => state.playing ? { ...state, playing: false } : state);
-  }
-
-  return { ...playback, chapter, finished, reducedMotion, jump, toggle, pause };
+  return { ...playback, chapter, jump };
 }

@@ -12,7 +12,7 @@
 .rowing-review button { color: inherit; font: inherit; cursor: pointer; }
 .rowing-review :focus-visible { outline: 2px solid #dfff80; outline-offset: 4px; }
 .rowing-review .shell { max-width: 1350px; padding: 24px clamp(16px, 4vw, 56px) 32px; margin: auto; }
-.rowing-review .mast, .rowing-review .brand, .rowing-review .header-actions, .rowing-review .transport { display: flex; align-items: center; }
+.rowing-review .mast, .rowing-review .brand, .rowing-review .header-actions { display: flex; align-items: center; }
 .rowing-review .mast { justify-content: space-between; gap: 15px; margin-bottom: 24px; }
 .rowing-review .brand { gap: 12px; }
 .rowing-review .review-logo { flex: none; width: 42px; height: 42px; }
@@ -199,8 +199,6 @@
 .rowing-review .overview-stats div { border-top: 1px solid #528d84; padding: 8px 0 0; }
 .rowing-review .overview-stats dd { margin: 0; color: #f2fffa; font-weight: 680; line-height: 1.2; font-size: clamp(1.14rem, 2.7vw, 2rem); white-space: nowrap; letter-spacing: -.04em; }
 .rowing-review .overview-stats dt { color: #b2e3da; font-size: .8rem; margin-top: 3px; }
-.rowing-review .transport { justify-content: center; margin-top: 12px; }
-.rowing-review .transport div { display: flex; gap: 8px; }
 .rowing-review .review-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 22px; }
 .rowing-review .status { font-size: .85rem; color: #eafeac; margin: 12px 0 0; }
 .rowing-review .status:empty { display: none; }
@@ -249,7 +247,6 @@
   .rowing-review .circuit canvas { height: 226px; }
   .rowing-review .laps { gap: 9px; }
   .rowing-review .lap + .lap { padding-left: 9px; }
-  .rowing-review .transport .button { font-size: .76rem; min-height: 38px; padding-inline: 8px; }
 }
 @media (max-width: 360px) {
   .rowing-review .timeline { gap: 3px; }
@@ -268,7 +265,6 @@
   margin-top: 18px;
 }
 .rowing-review .scene[data-chapter="message"] .note { margin: 0; }
-.rowing-review .transport .button { min-width: 4rem; }
 .rowing-review .overview-stats dd { font-variant-numeric: tabular-nums; }
 @media (max-width: 475px) {
   .rowing-review .mast-tools { gap: 8px; }

@@ -268,14 +268,13 @@ export function ReviewPlayer({ review, controls, sample }: { review: ReviewSumma
   const player = useReviewPlayback(chapters);
   const [exporting, setExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState('');
-  const { chapter, index, elapsed, playing, finished, reducedMotion, jump, toggle, pause } = player;
+  const { chapter, index, elapsed, playing, jump } = player;
   const progress = clamp(elapsed / chapter.duration);
   const cursor = clamp(progress / .63) * DAYS_IN_REVIEW;
   const visible = Math.min(review.window.daysElapsed, Math.floor(cursor));
   const entry = ease(elapsed / 380);
 
   async function exportPng() {
-    pause();
     setExporting(true);
     setExportMessage('');
     try {
@@ -290,7 +289,10 @@ export function ReviewPlayer({ review, controls, sample }: { review: ReviewSumma
 
   return (
     <ReviewFrame sample={sample} controls={controls} footerActions={
+      <>
+      <button className="button" type="button" onClick={() => jump(0, true)}>Replay</button>
       <button className="button primary" type="button" disabled={exporting} onClick={exportPng}>{exporting ? 'Preparing image…' : 'Share'}</button>
+      </>
     }>
       <nav className="timeline" aria-label="Review chapters" style={cssVars({ '--chapter-count': chapters.length })}>
         {chapters.map((item, i) => (
@@ -309,17 +311,6 @@ export function ReviewPlayer({ review, controls, sample }: { review: ReviewSumma
           {chapter.id === 'overview' && <Overview review={review} elapsed={elapsed} />}
         </article>
       </section>
-      <div className="transport" role="group" aria-label="Playback controls">
-        <div>
-          <button type="button" className="button" disabled={index === 0} onClick={() => jump(index - 1)}>Previous</button>
-          {(!reducedMotion || finished) && (
-            <button type="button" className="button primary" onClick={toggle}>
-              {playing ? 'Pause' : finished ? 'Replay' : elapsed < chapter.duration ? 'Resume' : 'Play'}
-            </button>
-          )}
-          <button type="button" className="button" disabled={index === chapters.length - 1} onClick={() => jump(index + 1)}>Next</button>
-        </div>
-      </div>
       <p className="status" role="status">{exportMessage}</p>
     </ReviewFrame>
   );
