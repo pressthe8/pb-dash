@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { FlamingStopwatchLogo } from '../../components/FlamingStopwatchLogo';
-import { drawDistance, drawLaps, drawRadar, drawWake, downloadReviewPoster } from './reviewArt';
+import { drawDistance, drawLaps, drawRadar, drawWake, shareReviewPoster } from './reviewArt';
 import { REVIEW_TITLE, REVIEW_YEAR } from './reviewConfig';
 import { DAYS_IN_REVIEW, type LongestRow, type ReviewSummary, type YearTotals } from './reviewData';
 import {
@@ -278,10 +278,9 @@ export function ReviewPlayer({ review, controls, sample }: { review: ReviewSumma
     setExporting(true);
     setExportMessage('');
     try {
-      await downloadReviewPoster(review);
-      setExportMessage('Overview PNG ready · 1080 × 1350');
+      await shareReviewPoster(review);
     } catch {
-      setExportMessage('Could not download the overview. Try again.');
+      setExportMessage('Could not share the overview image. Try again.');
     } finally {
       setExporting(false);
     }

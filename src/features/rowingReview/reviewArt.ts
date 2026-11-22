@@ -457,7 +457,7 @@ export function drawWake(ctx: CanvasRenderingContext2D, width: number, height: n
 }
 
 
-export async function downloadReviewPoster(review: ReviewSummary): Promise<void> {
+export async function shareReviewPoster(review: ReviewSummary): Promise<void> {
   const canvas = document.createElement('canvas');
   canvas.width = 1080;
   canvas.height = 1350;
@@ -475,9 +475,9 @@ export async function downloadReviewPoster(review: ReviewSummary): Promise<void>
   ctx.strokeStyle = accent;
   ctx.lineWidth = 2;
   line(ctx, 77, 129, 1003, 129);
-  text('PB DASH / CONCEPT2 ROWING', 77, 103, '700 25px monospace', accent);
+  text('concept2 rowing ' + REVIEW_YEAR, 77, 103, '700 25px monospace', accent);
   ctx.textAlign = 'right';
-  text(String(REVIEW_YEAR), 1003, 103, '700 25px monospace', accent);
+  text('pbdash.pressthe8.com', 1003, 103, '700 25px monospace', accent);
   ctx.textAlign = 'left';
   text('Your year', 69, 275, 'italic 142px Georgia');
   text('on the erg.', 69, 404, 'italic 142px Georgia');
@@ -501,13 +501,25 @@ export async function downloadReviewPoster(review: ReviewSummary): Promise<void>
     text(('Stats through ' + throughLabel(review)).toUpperCase(), 1003, 1273, '700 24px monospace', accent);
   }
 
-  const blob = await new Promise<Blob>((resolve, reject) =>
-    canvas.toBlob(image => image ? resolve(image) : reject(new Error('Unable to encode PNG')), 'image/png'),
-  );
-  const url = URL.createObjectURL(blob);
+  // Encode synchronously so the native share call keeps the button's user activation.
+  const dataUrl = canvas.toDataURL('image/png');
+  if (!dataUrl.startsWith('data:image/png;base64,')) throw new Error('Unable to encode PNG');
+  const bytes = Uint8Array.from(atob(dataUrl.slice(dataUrl.indexOf(',') + 1)), char => char.charCodeAt(0));
+  const file = new File([bytes], 'pb-dash-' + REVIEW_YEAR + '-overview.png', { type: 'image/png' });
+  const shareData = { files: [file] };
+  if (navigator.share && navigator.canShare?.(shareData)) {
+    try {
+      await navigator.share(shareData);
+      return;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+    }
+  }
+
+  const url = URL.createObjectURL(file);
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'pb-dash-' + REVIEW_YEAR + '-overview.png';
+  link.download = file.name;
   document.body.append(link);
   link.click();
   link.remove();
