@@ -475,7 +475,7 @@ export async function shareReviewPoster(review: ReviewSummary): Promise<void> {
   ctx.strokeStyle = accent;
   ctx.lineWidth = 2;
   line(ctx, 77, 129, 1003, 129);
-  text('concept2 rowing ' + REVIEW_YEAR, 77, 103, '700 25px monospace', accent);
+  text('CONCEPT2 ROWING ' + REVIEW_YEAR, 77, 103, '700 25px monospace', accent);
   ctx.textAlign = 'right';
   text('pbdash.pressthe8.com', 1003, 103, '700 25px monospace', accent);
   ctx.textAlign = 'left';
