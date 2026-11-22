@@ -12,7 +12,7 @@ import { StoredResult } from '../types/concept2';
 import { PREvent, SportType, SPORT_MAPPING, UserProfile } from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
 import { asErgSport } from '../../functions/src/workoutSport';
-import { REVIEW_PATH, REVIEW_YEAR } from '../features/rowingReview/reviewConfig';
+import { REVIEW_PATH, REVIEW_TITLE } from '../features/rowingReview/reviewConfig';
 import { Waves, TrendingUp, Link, AlertTriangle, Ruler, Clock, Bike, Mountain } from 'lucide-react';
 
 // Set to false to preview the legacy PB cards during development.
@@ -23,7 +23,7 @@ function RowingReviewLink() {
     <RouterLink to={REVIEW_PATH}
       className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900">
       <Waves className="h-4 w-4" aria-hidden="true" />
-      {REVIEW_YEAR} Rowing Review
+      {REVIEW_TITLE}
     </RouterLink>
   );
 }

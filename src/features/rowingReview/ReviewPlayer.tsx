@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { FlamingStopwatchLogo } from '../../components/FlamingStopwatchLogo';
 import { drawDistance, drawLaps, drawRadar, drawWake, downloadReviewPoster } from './reviewArt';
-import { REVIEW_YEAR } from './reviewConfig';
+import { REVIEW_TITLE, REVIEW_YEAR } from './reviewConfig';
 import { DAYS_IN_REVIEW, type LongestRow, type ReviewSummary, type YearTotals } from './reviewData';
 import {
   MONTHS, SECONDS_PER_LAP, annualDistance, axisStep, calendarRange, clamp, ease, elapsedTime,
@@ -51,10 +52,10 @@ function Artwork({ draw }: { draw: DrawFrame }) {
   return <canvas ref={canvas} aria-hidden="true" />;
 }
 
-export function ReviewFrame({ children, controls, sample }: { children: ReactNode; controls?: ReactNode; sample?: boolean }) {
+export function ReviewFrame({ children, controls, footerActions, sample }: { children: ReactNode; controls?: ReactNode; footerActions?: ReactNode; sample?: boolean }) {
   useEffect(() => {
     const title = document.title;
-    document.title = REVIEW_YEAR + ' Rowing Review · PB Dash';
+    document.title = REVIEW_TITLE + ' · PB Dash';
     return () => { document.title = title; };
   }, []);
 
@@ -63,15 +64,16 @@ export function ReviewFrame({ children, controls, sample }: { children: ReactNod
       <div className="shell">
         <header className="mast">
           <div className="brand">
-            <span className="logo" aria-hidden="true">∿∿</span>
-            <div><span className="wordmark">{sample ? 'PB Dash / Sample data' : 'PB Dash'}</span><h1>{REVIEW_YEAR} Rowing Review</h1></div>
+            <Link to="/dashboard" aria-label="Back to Dashboard"><FlamingStopwatchLogo className="review-logo" /></Link>
+            <div><span className="wordmark">{sample ? 'PB Dash / Sample data' : 'PB Dash'}</span><h1>{REVIEW_TITLE}</h1></div>
           </div>
-          <div className="mast-tools">
-            {controls}
-            <Link to="/dashboard" className="button">Back to Dashboard</Link>
-          </div>
+          {controls && <div className="mast-tools">{controls}</div>}
         </header>
         {children}
+        <footer className="review-actions">
+          {footerActions}
+          <Link to="/dashboard" className="button">Back to Dashboard</Link>
+        </footer>
       </div>
     </main>
   );
@@ -261,7 +263,7 @@ function Overview({ review, elapsed }: { review: ReviewSummary; elapsed: number 
   );
 }
 
-export function ReviewPlayer({ review, controls, sample }: { review: ReviewSummary; controls?: ReactNode; sample?: string }) {
+export function ReviewPlayer({ review, controls, sample }: { review: ReviewSummary; controls?: ReactNode; sample?: boolean }) {
   const chapters = useMemo(() => reviewChapters(review), [review]);
   const player = useReviewPlayback(chapters);
   const [exporting, setExporting] = useState(false);
@@ -287,8 +289,8 @@ export function ReviewPlayer({ review, controls, sample }: { review: ReviewSumma
   }
 
   return (
-    <ReviewFrame sample={!!sample} controls={
-      <>{controls}<button className="button primary" type="button" disabled={exporting} onClick={exportPng}>{exporting ? 'Preparing PNG…' : 'Download PNG'}</button></>
+    <ReviewFrame sample={sample} controls={controls} footerActions={
+      <button className="button primary" type="button" disabled={exporting} onClick={exportPng}>{exporting ? 'Preparing image…' : 'Share'}</button>
     }>
       <nav className="timeline" aria-label="Review chapters" style={cssVars({ '--chapter-count': chapters.length })}>
         {chapters.map((item, i) => (
@@ -317,13 +319,8 @@ export function ReviewPlayer({ review, controls, sample }: { review: ReviewSumma
           )}
           <button type="button" className="button" disabled={index === chapters.length - 1} onClick={() => jump(index + 1)}>Next</button>
         </div>
-        <span className="position" aria-live="polite">{index + 1} of {chapters.length} · {chapter.label}</span>
       </div>
       <p className="status" role="status">{exportMessage}</p>
-      <p className="footnote">
-        {sample ? 'Sample data · ' + sample + '. ' : 'Source · Saved PB Dash workouts. '}
-        Concept2 rowing sessions with positive distance.{review.splitTenths ? ' Average split uses only timed rows.' : ''}
-      </p>
     </ReviewFrame>
   );
 }

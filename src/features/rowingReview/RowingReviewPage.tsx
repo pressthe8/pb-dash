@@ -30,7 +30,7 @@ function LoadingReview({ controls }: { controls?: ReactNode }) {
 function ReviewResult({ review, controls, sample, connected }: {
   review: ReviewSummary; controls?: ReactNode; sample?: string; connected: boolean;
 }) {
-  if (review.sessions > 0) return <ReviewPlayer review={review} controls={controls} sample={sample} />;
+  if (review.sessions > 0) return <ReviewPlayer review={review} controls={controls} sample={!!sample} />;
 
   return (
     <ReviewFrame controls={controls} sample={!!sample}>
