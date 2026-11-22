@@ -132,7 +132,6 @@ export const LoginPage: React.FC = () => {
       <header className="pb-header">
         <div className="pb-wrap pb-mast">
           <Brand to="/login" />
-          <span className="pb-mast-note pb-label">Concept2 performance tracker</span>
         </div>
       </header>
       <main className="pb-wrap pb-login">
@@ -141,7 +140,7 @@ export const LoginPage: React.FC = () => {
             <WakeArt />
             <div className="pb-login-copy">
               <h1>Train today.<br /><em>Beat yesterday.</em></h1>
-              <p>Connect your Concept2 Logbook to see your personal bests, track your pace and look back on a year of training.</p>
+              <p>Visualise all the personal best attempts across your Logbook history</p>
             </div>
             <ul className="pb-login-sports pb-label" aria-label="Supported machines">
               <li>RowErg</li><li>BikeErg</li><li>SkiErg</li>
@@ -155,7 +154,7 @@ export const LoginPage: React.FC = () => {
                 <button type="button" aria-pressed={!signingIn} onClick={() => changeMode('signup')} disabled={busy}>Create account</button>
               </div>
               <h2 id="auth-title">{signingIn ? 'Welcome back.' : 'Check your PBs.'}</h2>
-              <p className="pb-auth-intro">{signingIn ? 'Sign in to see your training.' : 'Create an account to connect your Logbook.'}</p>
+              <p className="pb-auth-intro">{signingIn ? 'Sign in to see your training.' : 'Create an account to connect your data.'}</p>
 
               <button className="pb-button pb-google" type="button" onClick={handleGoogleSignIn} disabled={busy}>
                 {googleLoading ? <LoadingSpinner size="sm" /> : <GoogleMark />}

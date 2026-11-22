@@ -28,7 +28,6 @@
 .pb-brand-mark { display: grid; place-items: center; width: 35px; height: 35px; border-radius: 8px; overflow: hidden; }
 .pb-brand-mark img { width: 100%; height: 100%; object-fit: contain; }
 .pb-label { font: 600 .67rem/1.4 var(--pb-mono); letter-spacing: .085em; text-transform: uppercase; color: var(--pb-muted); }
-.pb-mast-note { text-align: right; }
 .pb-nav { display: flex; align-items: center; gap: 6px; margin-inline: auto; min-height: 100%; }
 .pb-nav a, .pb-account { color: var(--pb-muted); min-height: 42px; display: inline-flex; align-items: center; gap: 8px; font-size: .86rem; font-weight: 650; padding: 6px 12px; border-radius: 6px; white-space: nowrap; }
 .pb-nav a:hover, .pb-account:hover { color: var(--pb-text); background: var(--pb-raised); }
@@ -247,7 +246,6 @@
   .pb-nav a { padding-inline: 0; border-radius: 0; border-bottom: 2px solid transparent; }
   .pb-nav a[aria-current="page"] { background: transparent; border-color: var(--pb-lime); }
   .pb-account { justify-self: end; }
-  .pb-mast-note { max-width: 16ch; font-size: .6rem; }
   .pb-login { padding-block: 14px 23px; }
   .pb-login-art { min-height: 219px; padding-bottom: 44px; }
   .pb-login-copy p { font-size: .88rem; }
