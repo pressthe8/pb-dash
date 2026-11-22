@@ -17,8 +17,8 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" />
+      <div className="pb-app pb-page-status" role="status">
+        <LoadingSpinner size="lg" /><span className="sr-only">Loading PB Dash…</span>
       </div>
     );
   }
@@ -31,8 +31,8 @@ const AppRoutes: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" />
+      <div className="pb-app pb-page-status" role="status">
+        <LoadingSpinner size="lg" /><span className="sr-only">Loading PB Dash…</span>
       </div>
     );
   }
@@ -43,7 +43,7 @@ const AppRoutes: React.FC = () => {
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path={REVIEW_PATH} element={
         <ProtectedRoute>
-          <Suspense fallback={<div className="min-h-screen grid place-items-center"><LoadingSpinner size="lg" /></div>}>
+          <Suspense fallback={<div className="pb-app pb-page-status" role="status"><LoadingSpinner size="lg" /> Loading review…</div>}>
             <RowingReviewPage />
           </Suspense>
         </ProtectedRoute>

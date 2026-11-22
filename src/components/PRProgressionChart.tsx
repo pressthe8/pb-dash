@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { ResponsiveLine } from '@nivo/line';
+import { ResponsiveLine, type LineCustomSvgLayerProps, type PointTooltipProps } from '@nivo/line';
 import { PREvent } from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
 import { Trophy, TrendingUp } from 'lucide-react';
@@ -7,14 +7,20 @@ import { formatWorkoutDate, workoutCalendar } from '../../functions/src/workoutC
 
 interface PRProgressionChartProps {
   events: PREvent[];
+  seasonView?: boolean;
 }
+
+type ProgressionSeries = {
+  id: string;
+  data: { x: string; y: number; event: PREvent; isAllTime: boolean; isIntermediatePR: boolean; intermediatePRLabel: string }[];
+};
 
 const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 const formatMonthTick = (value: unknown) => value instanceof Date ? monthLabel.format(value) : String(value);
 const formatYearTick = (value: unknown) => value instanceof Date ? String(value.getUTCFullYear()) : String(value);
 const formatDay = (value: unknown) => value instanceof Date ? value.toISOString().slice(0, 10) : String(value);
 
-export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({ events }) => {
+export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({ events, seasonView }) => {
   // Helper function to format season display
   const formatSeasonDisplay = (seasonId: string): string => {
     const endYear = parseInt(seasonId);
@@ -28,11 +34,11 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({ events }
   };
 
   // Prepare chart data using pace for consistency
-  const chartData = useMemo(() => {
+  const chartData = useMemo<ProgressionSeries[]>(() => {
     if (!events || events.length === 0) return [];
 
     // Get profile setting from localStorage (set by ProfilePage)
-    const profileSeasonView = localStorage.getItem('pr_view_mode') === 'season';
+    const profileSeasonView = seasonView ?? (localStorage.getItem('pr_view_mode') === 'season');
 
     const dataPoints = events.flatMap(event => {
       const calendar = workoutCalendar(event.achieved_at);
@@ -60,7 +66,7 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({ events }
         data: dataPoints
       }
     ];
-  }, [events]);
+  }, [events, seasonView]);
 
   // Advanced axis configuration based on data span and density
   const getAxisConfiguration = useMemo(() => {
@@ -192,50 +198,50 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({ events }
   }, [getAxisConfiguration]);
 
   // Custom points layer function
-  const CustomPointsLayer = ({ points }: any) => {
+  const CustomPointsLayer = ({ points }: LineCustomSvgLayerProps<ProgressionSeries>) => {
     return (
       <g>
-        {points.map((point: any) => {
+        {points.map((point) => {
           const data = point.data;
           const isAllTime = data.isAllTime;
           const isIntermediatePR = data.isIntermediatePR;
           
           if (isAllTime) {
-            // All-time PB: Large gold point with white center
+            // All-time PB
             return (
               <g key={point.id}>
                 <circle
                   cx={point.x}
                   cy={point.y}
                   r={10}
-                  fill="#f59e0b"
-                  stroke="#ffffff"
+                  fill="#dfff80"
+                  stroke="#211b2e"
                   strokeWidth={3}
                 />
                 <circle
                   cx={point.x}
                   cy={point.y}
                   r={5}
-                  fill="#ffffff"
+                  fill="#211b2e"
                 />
                 <circle
                   cx={point.x}
                   cy={point.y}
                   r={2}
-                  fill="#f59e0b"
+                  fill="#dfff80"
                 />
               </g>
             );
           } else if (isIntermediatePR) {
-            // Intermediate PR (season/year): Medium blue point
+            // Season or calendar-year PB
             return (
               <circle
                 key={point.id}
                 cx={point.x}
                 cy={point.y}
                 r={8}
-                fill="#3b82f6"
-                stroke="#ffffff"
+                fill="#bda4ff"
+                stroke="#211b2e"
                 strokeWidth={3}
               />
             );
@@ -247,8 +253,8 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({ events }
                 cx={point.x}
                 cy={point.y}
                 r={6}
-                fill="#94a3b8"
-                stroke="#ffffff"
+                fill="#a39ab5"
+                stroke="#211b2e"
                 strokeWidth={2}
               />
             );
@@ -259,7 +265,7 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({ events }
   };
 
   // Custom tooltip
-  const CustomTooltip = ({ point }: any) => {
+  const CustomTooltip = ({ point }: PointTooltipProps<ProgressionSeries>) => {
     const data = point.data;
     const event = data.event;
     
@@ -273,27 +279,27 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({ events }
     };
     
     return (
-      <div className="bg-white p-3 rounded-lg shadow-lg border border-slate-200">
+      <div className="pb-chart-tooltip">
         <div className="flex items-center space-x-2 mb-2">
-          {data.isAllTime && <Trophy className="w-4 h-4 text-amber-500" />}
-          {data.isIntermediatePR && !data.isAllTime && <TrendingUp className="w-4 h-4 text-blue-500" />}
-          <span className="font-medium text-slate-900">
+          {data.isAllTime && <Trophy className="w-4 h-4 text-[var(--pb-lime)]" />}
+          {data.isIntermediatePR && !data.isAllTime && <TrendingUp className="w-4 h-4 text-[#bda4ff]" />}
+          <span className="font-medium text-[var(--pb-text)]">
             {formatMainValue(event)}
           </span>
         </div>
-        <div className="text-sm text-slate-600">
+        <div className="text-sm text-[var(--pb-muted)]">
           {formatWorkoutDate(event.achieved_at)}
         </div>
-        <div className="text-xs text-slate-500 mt-1">
+        <div className="text-xs text-[var(--pb-muted)] mt-1">
           Pace: {formatTime(event.pace_per_500m!)}/500m
         </div>
         {data.isAllTime && (
-          <div className="text-xs text-amber-600 mt-1 font-medium">
+          <div className="text-xs text-[var(--pb-lime)] mt-1 font-medium">
             All-Time PB
           </div>
         )}
         {data.isIntermediatePR && !data.isAllTime && (
-          <div className="text-xs text-blue-600 mt-1 font-medium">
+          <div className="text-xs text-[#bda4ff] mt-1 font-medium">
             {data.intermediatePRLabel}
           </div>
         )}
@@ -303,9 +309,9 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({ events }
 
   if (!events || events.length === 0) {
     return (
-      <div className="h-64 flex items-center justify-center text-slate-500">
+      <div className="h-64 flex items-center justify-center text-[var(--pb-muted)]">
         <div className="text-center">
-          <TrendingUp className="w-8 h-8 mx-auto mb-2 text-slate-400" />
+          <TrendingUp className="w-8 h-8 mx-auto mb-2 text-[var(--pb-muted)]" />
           <p>No progression data available</p>
         </div>
       </div>
@@ -315,11 +321,11 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({ events }
   const dataPoints = chartData[0]?.data ?? [];
   if (dataPoints.length === 0) {
     return (
-      <div className="h-64 flex items-center justify-center text-slate-500">
+      <div className="h-64 flex items-center justify-center text-[var(--pb-muted)]">
         <div className="text-center">
-          <TrendingUp className="w-8 h-8 mx-auto mb-2 text-slate-400" />
+          <TrendingUp className="w-8 h-8 mx-auto mb-2 text-[var(--pb-muted)]" />
           <p>No pace data available</p>
-          <p className="text-xs text-slate-400 mt-1">Pace data is calculated for newer results</p>
+          <p className="text-xs text-[var(--pb-muted)] mt-1">Pace data is calculated for newer results</p>
         </div>
       </div>
     );
@@ -328,12 +334,12 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({ events }
   if (dataPoints.length === 1) {
     const { event } = dataPoints[0];
     return (
-      <div className="h-64 flex items-center justify-center text-slate-500">
+      <div className="h-64 flex items-center justify-center text-[var(--pb-muted)]">
         <div className="text-center">
-          <Trophy className="w-8 h-8 mx-auto mb-2 text-amber-500" />
-          <p className="font-medium text-slate-700">Single Result</p>
+          <Trophy className="w-8 h-8 mx-auto mb-2 text-[var(--pb-lime)]" />
+          <p className="font-medium text-[var(--pb-text)]">Single Result</p>
           <p className="text-sm">Pace: {formatTime(event.pace_per_500m!)}/500m</p>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-[var(--pb-muted)] mt-1">
             {formatWorkoutDate(event.achieved_at)}
           </p>
         </div>
@@ -343,7 +349,7 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({ events }
 
   return (
     <div className="h-64">
-      <ResponsiveLine
+      <ResponsiveLine<ProgressionSeries>
         data={chartData}
         margin={responsiveMargins}
         xScale={{
@@ -387,25 +393,25 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({ events }
             ticks: {
               text: {
                 fontSize: typeof window !== 'undefined' && window.innerWidth < 640 ? 10 : 12,
-                fill: '#64748b'
+                fill: '#bbb0cd'
               }
             },
             legend: {
               text: {
                 fontSize: typeof window !== 'undefined' && window.innerWidth < 640 ? 10 : 12,
-                fill: '#475569',
+                fill: '#d6cce4',
                 fontWeight: 500
               }
             }
           },
           grid: {
             line: {
-              stroke: '#e2e8f0',
+              stroke: '#483c59',
               strokeWidth: 1
             }
           }
         }}
-        colors={['#3b82f6']}
+        colors={['#bda4ff']}
         lineWidth={3}
         enableArea={false}
         animate={true}

@@ -1,553 +1,188 @@
-import React, { useState, useMemo } from 'react';
-import { ChevronDown, ArrowLeft, Trophy, Clock, Zap, Target, Mountain, MapPin } from 'lucide-react';
-import { PRStats, PREvent, SportType, SPORT_MAPPING } from '../types/personalRecords';
+import { lazy, Suspense, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, ArrowUpRight, ChevronDown, Clock3, Target, Trophy } from 'lucide-react';
+import { type PRStats, type PREvent, type SportType, SPORT_MAPPING } from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
-import { PRProgressionChart } from './PRProgressionChart';
 import { formatWorkoutDate, workoutCalendar } from '../../functions/src/workoutCalendar';
+
+const PRProgressionChart = lazy(() => import('./PRProgressionChart').then(module => ({ default: module.PRProgressionChart })));
 
 interface PersonalBestsTableViewProps {
   prStats: PRStats[];
   loading: boolean;
   allPREvents: PREvent[];
   selectedSport?: SportType;
+  seasonView?: boolean;
 }
 
-interface DetailViewData {
-  activityKey: string;
-  activityName: string;
-  allAttempts: PREvent[];
+type SortField = 'date' | 'performance';
+
+function formatPeriod(period: string) {
+  if (period === 'all-time') return 'All time';
+  const [kind, year] = period.split('-');
+  return kind === 'season' ? `${Number(year) - 1}/${year.slice(-2)}` : year;
 }
 
-type ViewMode = 'table' | 'detail';
-type SortField = 'achieved_at' | 'metric_value';
-type SortDirection = 'asc' | 'desc';
+function formatRecord(event: PREvent) {
+  return event.metric_type === 'time' ? formatTime(event.metric_value) : event.metric_value.toLocaleString() + ' m';
+}
 
-export const PersonalBestsTableView: React.FC<PersonalBestsTableViewProps> = ({ 
-  prStats, 
-  loading,
-  allPREvents,
-  selectedSport
-}) => {
-  // State management
-  const [viewMode, setViewMode] = useState<ViewMode>('table');
-  const [selectedFilter, setSelectedFilter] = useState<string>('all-time');
-  const [detailView, setDetailView] = useState<DetailViewData | null>(null);
-  const [sortField, setSortField] = useState<SortField>('achieved_at');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+function RecordHistory({ stat, events, seasonView, onBack }: { stat: PRStats; events: PREvent[]; seasonView: boolean; onBack: () => void }) {
+  const title = useRef<HTMLHeadingElement>(null);
+  useLayoutEffect(() => { title.current?.focus(); }, []);
+  const [sort, setSort] = useState<{ field: SortField; ascending: boolean }>({ field: 'date', ascending: false });
+  const measuresDistance = events[0]?.metric_type === 'distance';
+  const sorted = useMemo(() => [...events].sort((a, b) => {
+    const order = sort.field === 'date'
+      ? (workoutCalendar(a.achieved_at)?.sortKey ?? '').localeCompare(workoutCalendar(b.achieved_at)?.sortKey ?? '')
+      : a.metric_value - b.metric_value;
+    return sort.ascending ? order : -order;
+  }), [events, sort]);
 
-  // Helper function to format season display
-  const formatSeasonDisplay = (seasonId: string): string => {
-    const endYear = parseInt(seasonId);
-    const startYear = endYear - 1;
-    return `${startYear}/${seasonId.slice(-2)}`;
-  };
+  function sortBy(field: SortField) {
+    setSort(previous => ({
+      field,
+      ascending: previous.field === field ? !previous.ascending : field === 'performance' && !measuresDistance,
+    }));
+  }
 
-  // Get available periods from PR events, respecting profile settings
-  const availablePeriods = useMemo(() => {
-    if (!allPREvents || allPREvents.length === 0) {
-      return ['all-time'];
+  return (
+    <section className="pb-panel pb-records" aria-labelledby="pb-event-title">
+      <header className="pb-records-header">
+        <div>
+          <button type="button" className="pb-text-button pb-back" onClick={onBack}><ArrowLeft size={16} aria-hidden="true" /> Personal bests</button>
+          <h2 id="pb-event-title" tabIndex={-1} ref={title}>{stat.activity_name}</h2>
+        </div>
+        <span className="pb-label">{events.length} {events.length === 1 ? 'record' : 'records'}</span>
+      </header>
+      <div className="pb-record-chart">
+        <h3>Pace progression</h3>
+        <p><span className="pb-legend-dot pb-legend-pb" /> All-time PB <span className="pb-legend-dot" /> Other personal records</p>
+        <Suspense fallback={<p className="pb-chart-loading" role="status">Loading pace history…</p>}>
+          <PRProgressionChart events={events} seasonView={seasonView} />
+        </Suspense>
+      </div>
+      <div className="pb-result-scroll">
+        <table className="pb-table">
+          <thead>
+            <tr>
+              <th scope="col" aria-sort={sort.field === 'date' ? sort.ascending ? 'ascending' : 'descending' : undefined}>
+                <button type="button" onClick={() => sortBy('date')}>Date {sort.field === 'date' && (sort.ascending ? '↑' : '↓')}</button>
+              </th>
+              <th scope="col" aria-sort={sort.field === 'performance' ? sort.ascending ? 'ascending' : 'descending' : undefined}>
+                <button type="button" onClick={() => sortBy('performance')}>
+                  {measuresDistance ? 'Distance' : 'Time'} {sort.field === 'performance' && (sort.ascending ? '↑' : '↓')}
+                </button>
+              </th>
+              <th scope="col">Pace / 500m</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map(event => (
+              <tr key={event.id}>
+                <td>{formatWorkoutDate(event.achieved_at)}</td>
+                <td className="pb-record-value">
+                  {formatRecord(event)}
+                  {event.pr_scope.includes('all-time') && <Trophy size={14} aria-label="All-time personal best" />}
+                </td>
+                <td>{event.pace_per_500m ? formatTime(event.pace_per_500m) : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+export function PersonalBestsTableView({ prStats, loading, allPREvents, selectedSport, seasonView }: PersonalBestsTableViewProps) {
+  const [periodChoice, setPeriodChoice] = useState('all-time');
+  const [activityKey, setActivityKey] = useState<string | null>(null);
+  const historyTrigger = useRef<HTMLButtonElement>(null);
+  const lastOpenedActivity = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    if (!activityKey && lastOpenedActivity.current) {
+      historyTrigger.current?.focus();
+      lastOpenedActivity.current = null;
     }
+  }, [activityKey]);
+  const bySeason = seasonView ?? (localStorage.getItem('pr_view_mode') === 'season');
 
-    const periods = new Set<string>(['all-time']);
-    
-    // Get profile setting from localStorage (set by ProfilePage)
-    const profileSeasonView = localStorage.getItem('pr_view_mode') === 'season';
-    
+  const periods = useMemo(() => {
+    const available = new Set<string>();
     for (const event of allPREvents) {
       const calendar = workoutCalendar(event.achieved_at);
-      if (calendar) periods.add(profileSeasonView ? `season-${calendar.season}` : `year-${calendar.year}`);
+      if (calendar) available.add(bySeason ? 'season-' + calendar.season : 'year-' + calendar.year);
     }
+    return ['all-time', ...Array.from(available).sort().reverse()];
+  }, [allPREvents, bySeason]);
 
-    const sortedPeriods = Array.from(periods).sort((a, b) => {
-      if (a === 'all-time') return -1;
-      if (b === 'all-time') return 1;
-      
-      // Extract year for comparison
-      const getYear = (period: string) => {
-        if (period.startsWith('year-')) return parseInt(period.split('-')[1]);
-        if (period.startsWith('season-')) return parseInt(period.split('-')[1]);
-        return 0;
-      };
-      
-      return getYear(b) - getYear(a); // Descending order (newest first)
+  const period = periods.includes(periodChoice) ? periodChoice : 'all-time';
+  const records = prStats.flatMap(stat => {
+    const record = period === 'all-time' ? stat.all_time_record : allPREvents.find(event => {
+      if (event.activity_key !== stat.activity_key || !event.pr_scope.includes(period)) return false;
+      const calendar = workoutCalendar(event.achieved_at);
+      return Boolean(calendar && period === (bySeason ? 'season-' + calendar.season : 'year-' + calendar.year));
     });
+    return record ? [{ stat, record }] : [];
+  });
+  const active = prStats.find(stat => stat.activity_key === activityKey);
 
-    return sortedPeriods;
-  }, [allPREvents]);
-
-  // Display pace from PR event data
-  const displayPace = (event: PREvent): string => {
-    if (event.pace_per_500m) {
-      // pace_per_500m is already in tenths, so formatTime can use it directly
-      return formatTime(event.pace_per_500m);
-    }
-    return 'N/A';
-  };
-
-  // Format distance for display - always show metres with comma separators
-  const formatDistance = (meters: number): string => {
-    // Always show in metres with comma separator for thousands
-    return `${meters.toLocaleString()}m`;
-  };
-
-  // Determine if this is a time-based event (fixed time, variable distance)
-  const isTimeBasedEvent = (activityKey: string): boolean => {
-    return activityKey.includes('min_') || activityKey.includes('sec_');
-  };
-
-  // Format the PB value based on event type
-  const formatPBValue = (event: PREvent): string => {
-    if (event.metric_type === 'time') {
-      // Distance-based event: show time
-      return formatTime(event.metric_value);
-    } else {
-      // Time-based event: show distance
-      return formatDistance(event.metric_value);
-    }
-  };
-
-  // Get dynamic column header based on selected filter
-  const getPBColumnHeader = (): string => {
-    if (selectedFilter === 'all-time') {
-      return 'PB';
-    } else if (selectedFilter.startsWith('year-')) {
-      const year = selectedFilter.split('-')[1];
-      return `${year} PB`;
-    } else if (selectedFilter.startsWith('season-')) {
-      const season = selectedFilter.split('-')[1];
-      return `${formatSeasonDisplay(season)} PB`;
-    }
-    return 'PB';
-  };
-
-  // Check if we should show trophy (only for all-time records when filtering)
-  const shouldShowTrophy = (stat: any): boolean => {
-    if (selectedFilter === 'all-time') {
-      return true; // Always show trophy for all-time view
-    }
-    
-    // For filtered views, only show trophy if this record is also the all-time record
-    return stat.selectedRecord && stat.all_time_record && 
-           stat.selectedRecord.id === stat.all_time_record.id;
-  };
-
-  // Get event icon and color scheme - simplified and cleaner
-  const getEventIconAndColor = (activityKey: string) => {
-    // Time-based events get clock icon
-    if (isTimeBasedEvent(activityKey)) {
-      return {
-        icon: <Clock className="w-4 h-4" />,
-        bg: 'bg-orange-50',
-        border: 'border-orange-200',
-        text: 'text-orange-700',
-        iconColor: 'text-orange-500',
-        colorName: 'orange'
-      };
-    }
-    
-    // Distance-based events get different icons based on distance category
-    if (activityKey.includes('100m') || activityKey.includes('500m')) {
-      // Sprint distances - lightning bolt
-      return {
-        icon: <Zap className="w-4 h-4" />,
-        bg: 'bg-red-50',
-        border: 'border-red-200',
-        text: 'text-red-700',
-        iconColor: 'text-red-500',
-        colorName: 'red'
-      };
-    } else if (activityKey.includes('1k') || activityKey.includes('2k')) {
-      // Middle distances - target
-      return {
-        icon: <Target className="w-4 h-4" />,
-        bg: 'bg-blue-50',
-        border: 'border-blue-200',
-        text: 'text-blue-700',
-        iconColor: 'text-blue-500',
-        colorName: 'blue'
-      };
-    } else if (activityKey.includes('5k') || activityKey.includes('6k') || activityKey.includes('10k')) {
-      // Long distances - mountain
-      return {
-        icon: <Mountain className="w-4 h-4" />,
-        bg: 'bg-green-50',
-        border: 'border-green-200',
-        text: 'text-green-700',
-        iconColor: 'text-green-500',
-        colorName: 'green'
-      };
-    } else if (activityKey.includes('marathon') || activityKey.includes('half_marathon')) {
-      // Ultra distances - map pin
-      return {
-        icon: <MapPin className="w-4 h-4" />,
-        bg: 'bg-purple-50',
-        border: 'border-purple-200',
-        text: 'text-purple-700',
-        iconColor: 'text-purple-500',
-        colorName: 'purple'
-      };
-    }
-
-    // Default fallback
-    return {
-      icon: <Target className="w-4 h-4" />,
-      bg: 'bg-slate-50',
-      border: 'border-slate-200',
-      text: 'text-slate-700',
-      iconColor: 'text-slate-500',
-      colorName: 'slate'
-    };
-  };
-
-  // Get filtered PR stats based on selected period
-  const filteredPRStats = useMemo(() => {
-    return prStats.map(stat => {
-      let selectedRecord: PREvent | null = null;
-
-      if (selectedFilter === 'all-time') {
-        selectedRecord = stat.all_time_record;
-      } else if (selectedFilter.startsWith('year-')) {
-        const year = selectedFilter.split('-')[1];
-        selectedRecord = allPREvents.find(event => 
-          event.activity_key === stat.activity_key &&
-          workoutCalendar(event.achieved_at)?.year === year &&
-          event.pr_scope.includes(`year-${year}`)
-        ) || null;
-      } else if (selectedFilter.startsWith('season-')) {
-        const season = selectedFilter.split('-')[1];
-        selectedRecord = allPREvents.find(event => 
-          event.activity_key === stat.activity_key &&
-          workoutCalendar(event.achieved_at)?.season === season &&
-          event.pr_scope.includes(`season-${season}`)
-        ) || null;
-      }
-
-      return {
-        ...stat,
-        selectedRecord
-      };
-    }).filter(stat => stat.selectedRecord !== null); // Only show activities with records for selected period
-  }, [prStats, allPREvents, selectedFilter]);
-
-  // Format period display name
-  const formatPeriodDisplay = (period: string): string => {
-    if (period === 'all-time') return 'All-Time';
-    if (period.startsWith('year-')) return period.split('-')[1];
-    if (period.startsWith('season-')) return formatSeasonDisplay(period.split('-')[1]);
-    return period;
-  };
-
-  // Handle row click to show detail view
-  const handleRowClick = (stat: any) => {
-    const activityEvents = allPREvents.filter(event => 
-      event.activity_key === stat.activity_key
-    );
-
-    setDetailView({
-      activityKey: stat.activity_key,
-      activityName: stat.activity_name,
-      allAttempts: activityEvents
-    });
-    setViewMode('detail');
-  };
-
-  // Handle back to table view
-  const handleBackToTable = () => {
-    setViewMode('table');
-    setDetailView(null);
-  };
-
-  // Sort detail view data
-  const sortedDetailData = useMemo(() => {
-    if (!detailView) return [];
-
-    const sorted = [...detailView.allAttempts].sort((a, b) => {
-      let aValue: number | string;
-      let bValue: number | string;
-
-      if (sortField === 'achieved_at') {
-        aValue = workoutCalendar(a.achieved_at)?.sortKey ?? '';
-        bValue = workoutCalendar(b.achieved_at)?.sortKey ?? '';
-      } else {
-        aValue = a.metric_value;
-        bValue = b.metric_value;
-      }
-
-      if (sortDirection === 'asc') {
-        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-      } else {
-        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
-      }
-    });
-
-    return sorted;
-  }, [detailView, sortField, sortDirection]);
-
-  // Handle sort
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection(field === 'achieved_at' ? 'desc' : 'asc'); // Default: newest first for date, best first for performance
-    }
-  };
-
-  // Check if an attempt is the all-time record
-  const isAllTimeRecord = (attempt: PREvent): boolean => {
-    return attempt.pr_scope.includes('all-time');
-  };
-
-  if (loading) {
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-        <div className="p-6 border-b border-slate-200">
-          <h2 className="text-xl font-semibold text-slate-900">Personal Bests</h2>
-        </div>
-        <div className="p-6">
-          <div className="animate-pulse space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-16 bg-slate-200 rounded-lg"></div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
+  if (active) {
+    return <RecordHistory stat={active} events={allPREvents.filter(event => event.activity_key === activityKey)}
+      seasonView={bySeason} onBack={() => setActivityKey(null)} />;
   }
 
-  if (prStats.length === 0) {
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-        <div className="p-6 border-b border-slate-200">
-          <h2 className="text-xl font-semibold text-slate-900">Personal Bests</h2>
-        </div>
-        <div className="p-6 text-center">
-          <h3 className="text-lg font-medium text-slate-900 mb-2">
-            No Personal Bests for {selectedSport ? SPORT_MAPPING[selectedSport] : 'Selected Sport'} Yet
-          </h3>
-          <p className="text-slate-600">
-            Complete some {selectedSport ? SPORT_MAPPING[selectedSport].toLowerCase() : 'selected sport'} workouts to start tracking your PBs.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Detail View
-  if (viewMode === 'detail' && detailView) {
-    const isTimeBased = isTimeBasedEvent(detailView.activityKey);
-    const iconAndColors = getEventIconAndColor(detailView.activityKey);
-    
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-        <div className={`p-6 border-b ${iconAndColors.border} ${iconAndColors.bg}`}>
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={handleBackToTable}
-              className="p-2 hover:bg-white/50 rounded-lg transition-colors duration-200"
-            >
-              <ArrowLeft className="w-5 h-5 text-slate-600" />
-            </button>
-            <div className="flex items-center space-x-3">
-              <div className={`p-2 bg-white rounded-lg ${iconAndColors.border} border`}>
-                <div className={iconAndColors.iconColor}>
-                  {iconAndColors.icon}
-                </div>
-              </div>
-              <div>
-                <h2 className={`text-xl font-semibold ${iconAndColors.text}`}>{detailView.activityName}</h2>
-                <p className="text-slate-600">All attempts ({detailView.allAttempts.length})</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="p-6">
-          {/* Progression Chart - NOW FIRST */}
-          <div className="mb-8">
-            <h3 className="text-lg font-medium text-slate-900 mb-2">Pace Progression</h3>
-            <p className="text-sm text-slate-600 mb-4">
-              Track your pace improvement over time. Gold points are all-time PBs, blue points are other personal records.
-            </p>
-            <PRProgressionChart events={detailView.allAttempts} />
-          </div>
-
-          {/* Results Table - NOW SECOND */}
-          <div>
-            <h3 className="text-lg font-medium text-slate-900 mb-4">All Results</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-200">
-                    <th 
-                      className="text-left py-3 px-4 font-medium text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg transition-colors duration-200"
-                      onClick={() => handleSort('achieved_at')}
-                    >
-                      <div className="flex items-center space-x-1">
-                        <span>Date</span>
-                        {sortField === 'achieved_at' && (
-                          <span className="text-blue-500">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                        )}
-                      </div>
-                    </th>
-                    <th 
-                      className="text-left py-3 px-4 font-medium text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg transition-colors duration-200"
-                      onClick={() => handleSort('metric_value')}
-                    >
-                      <div className="flex items-center space-x-1">
-                        <span>{isTimeBased ? 'Distance' : 'Time'}</span>
-                        {sortField === 'metric_value' && (
-                          <span className="text-blue-500">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                        )}
-                      </div>
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-700 hidden sm:table-cell">
-                      Pace (/500m)
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedDetailData.map(attempt => (
-                    <tr 
-                      key={attempt.id} 
-                      className={`border-b border-slate-100 hover:bg-slate-50 transition-colors duration-200 ${
-                        isAllTimeRecord(attempt) ? 'bg-gradient-to-r from-amber-50 to-yellow-50' : ''
-                      }`}
-                    >
-                      <td className="py-3 px-4">
-                        <div className="flex items-center space-x-2">
-                          {isAllTimeRecord(attempt) && (
-                            <Trophy className="w-4 h-4 text-amber-500" />
-                          )}
-                          <span className="text-slate-900">{formatWorkoutDate(attempt.achieved_at)}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`font-medium ${isAllTimeRecord(attempt) ? 'text-amber-900' : 'text-slate-900'}`}>
-                          {formatPBValue(attempt)}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-slate-600 hidden sm:table-cell">
-                        {displayPace(attempt)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Main Table View
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-      <div className="p-4 sm:p-6 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-gradient-to-r from-amber-500 to-yellow-500 rounded-lg">
-              <Trophy className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Personal Bests</h2>
-              <p className="text-xs sm:text-sm text-slate-600">
-                Your best {selectedSport ? SPORT_MAPPING[selectedSport].toLowerCase() : ''} performances across all events
-              </p>
-            </div>
-          </div>
-          
-          {/* Period Filter Dropdown */}
-          {availablePeriods.length > 1 && (
-            <div className="relative">
-              <select
-                value={selectedFilter}
-                onChange={(e) => setSelectedFilter(e.target.value)}
-                className="appearance-none bg-white border border-slate-300 rounded-lg px-2 sm:px-3 py-1 sm:py-2 pr-6 sm:pr-8 text-xs sm:text-sm font-medium text-slate-900 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
-              >
-                {availablePeriods.map(period => (
-                  <option key={period} value={period}>
-                    {formatPeriodDisplay(period)}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-1 sm:right-2 top-1/2 transform -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-slate-400 pointer-events-none" />
-            </div>
-          )}
+    <section className="pb-panel pb-records" aria-labelledby="pb-records-title" aria-busy={loading}>
+      <header className="pb-records-header">
+        <div>
+          <h2 id="pb-records-title">Personal bests</h2>
+          {!loading && records.length > 0 && <p>{records.length} {records.length === 1 ? 'event' : 'events'}{selectedSport && ' · ' + SPORT_MAPPING[selectedSport]}</p>}
         </div>
-      </div>
-      
-      <div className="p-3 sm:p-6">
-        {filteredPRStats.length === 0 ? (
-          <div className="text-center py-8">
-            <Trophy className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-slate-900 mb-2">No Personal Bests</h3>
-            <p className="text-slate-600">
-              No records found for the selected period.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b-2 border-slate-200">
-                  <th className="text-left py-3 px-2 sm:px-4 font-semibold text-slate-800 bg-slate-50 rounded-tl-lg text-sm">
-                    Event
-                  </th>
-                  <th className="text-left py-3 px-2 sm:px-4 font-semibold text-slate-800 bg-slate-50 text-sm">
-                    {getPBColumnHeader()}
-                  </th>
-                  <th className="text-left py-3 px-2 sm:px-4 font-semibold text-slate-800 bg-slate-50 rounded-tr-lg text-sm">
-                    Date
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPRStats.map(stat => {
-                  const iconAndColors = getEventIconAndColor(stat.activity_key);
-                  const showTrophy = shouldShowTrophy(stat);
-                  
-                  return (
-                    <tr 
-                      key={stat.activity_key} 
-                      className="border-b border-slate-100 hover:bg-gradient-to-r hover:from-slate-50 hover:to-blue-50 cursor-pointer transition-all duration-200 group"
-                      onClick={() => handleRowClick(stat)}
-                    >
-                      <td className="py-3 px-2 sm:px-4">
-                        <div className="flex items-center space-x-2 sm:space-x-3">
-                          {/* Show icon only on larger screens to save space */}
-                          <div className={`p-1.5 sm:p-2 ${iconAndColors.bg} ${iconAndColors.border} border rounded-lg group-hover:scale-110 transition-transform duration-200 hidden sm:block`}>
-                            <div className={iconAndColors.iconColor}>
-                              {iconAndColors.icon}
-                            </div>
-                          </div>
-                          <span className="font-medium text-slate-900 group-hover:text-blue-700 transition-colors duration-200 text-sm sm:text-base">
-                            {stat.activity_name}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-2 sm:px-4">
-                        <div className="flex items-center space-x-1 sm:space-x-2">
-                          {showTrophy && (
-                            <Trophy className="w-3 h-3 sm:w-4 sm:h-4 text-amber-500 flex-shrink-0" />
-                          )}
-                          <span className="text-slate-900 font-medium text-sm sm:text-base">
-                            {stat.selectedRecord && formatPBValue(stat.selectedRecord)}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-2 sm:px-4 text-slate-600 text-xs sm:text-sm">
-                        {stat.selectedRecord && formatWorkoutDate(stat.selectedRecord.achieved_at)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        {periods.length > 1 && (
+          <div className="pb-select">
+            <select aria-label="Record period" value={period} onChange={event => setPeriodChoice(event.target.value)}>
+              {periods.map(value => <option key={value} value={value}>{formatPeriod(value)}</option>)}
+            </select>
+            <ChevronDown size={16} aria-hidden="true" />
           </div>
         )}
-      </div>
-    </div>
+      </header>
+      {loading ? (
+        <p className="pb-records-empty" role="status">Loading personal bests…</p>
+      ) : records.length === 0 ? (
+        <p className="pb-records-empty">{period === 'all-time' ? 'No personal bests for this machine yet.' : 'No personal bests for this period.'}</p>
+      ) : (
+        <table className="pb-table">
+          <thead><tr><th scope="col">Event</th><th scope="col">Best</th><th scope="col">Date</th></tr></thead>
+          <tbody>
+            {records.map(({ stat, record }) => {
+              const Icon = record.metric_type === 'time' ? Target : Clock3;
+              return (
+                <tr key={stat.activity_key}>
+                  <th scope="row">
+                    <button className="pb-record-event" type="button"
+                      ref={stat.activity_key === lastOpenedActivity.current ? historyTrigger : undefined}
+                      onClick={() => {
+                        lastOpenedActivity.current = stat.activity_key;
+                        setActivityKey(stat.activity_key);
+                      }}>
+                      <span className="pb-record-icon"><Icon size={16} aria-hidden="true" /></span>
+                      {stat.activity_name}
+                      <ArrowUpRight className="pb-record-arrow" size={15} aria-hidden="true" />
+                    </button>
+                  </th>
+                  <td className="pb-record-value">
+                    {formatRecord(record)}
+                    {stat.all_time_record?.id === record.id && <Trophy size={14} aria-label="All-time personal best" />}
+                  </td>
+                  <td>{formatWorkoutDate(record.achieved_at)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </section>
   );
-};
+}

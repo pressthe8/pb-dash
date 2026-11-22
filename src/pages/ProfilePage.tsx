@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { doc, updateDoc } from 'firebase/firestore';
 import { useAuth } from '../hooks/useAuth';
 import { usePersonalRecords } from '../hooks/usePersonalRecords';
@@ -6,7 +7,6 @@ import { FirebaseService } from '../services/firebaseService';
 import { CloudFunctionsService } from '../services/cloudFunctions';
 import { DataCacheService } from '../services/dataCacheService';
 import { LoadingSpinner } from '../components/LoadingSpinner';
-import { PRImageGenerator } from '../components/PRImageGenerator';
 import { PREvent, UserProfile, SportType, SPORT_MAPPING } from '../types/personalRecords';
 import { asErgSport } from '../../functions/src/workoutSport';
 import { 
@@ -24,6 +24,8 @@ import {
   Shield,
   LogOut
 } from 'lucide-react';
+
+const PRImageGenerator = lazy(() => import('../components/PRImageGenerator').then(module => ({ default: module.PRImageGenerator })));
 
 // Extended profile interface that includes sync timestamp
 interface ExtendedUserProfile extends UserProfile {
@@ -62,6 +64,8 @@ export const ProfilePage: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [disconnectError, setDisconnectError] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   
@@ -92,6 +96,7 @@ export const ProfilePage: React.FC = () => {
       if (cachedProfile) {
         console.log('Using cached user profile with sync timestamp');
         setProfile(cachedProfile);
+        if (cachedProfile.default_sport) setSelectedSport(cachedProfile.default_sport);
         return;
       }
       
@@ -158,7 +163,7 @@ export const ProfilePage: React.FC = () => {
       // Reason: Update cache with new profile data
       await cacheService.setCachedData(user.uid, 'userProfile', updatedProfile);
       
-      // Update localStorage for PersonalRecordsCard
+      // Preserve the period preference for views opened before a profile is loaded.
       localStorage.setItem('pr_view_mode', enabled ? 'season' : 'year');
       
     } catch (error) {
@@ -188,6 +193,7 @@ export const ProfilePage: React.FC = () => {
       
       // Update selected sport for image generator
       setSelectedSport(sport);
+      localStorage.setItem('dashboard_sport_filter', sport);
       
       // Reason: Update cache with new profile data
       await cacheService.setCachedData(user.uid, 'userProfile', updatedProfile);
@@ -283,8 +289,9 @@ export const ProfilePage: React.FC = () => {
   });
 
   const handleDisconnectConcept2 = async () => {
-    if (!user) return;
-    
+    if (!user || disconnecting) return;
+    setDisconnecting(true);
+    setDisconnectError('');
     try {
       await clearConcept2Connection();
       setShowDisconnectConfirm(false);
@@ -296,6 +303,9 @@ export const ProfilePage: React.FC = () => {
       await loadProfile();
     } catch (error) {
       console.error('Error disconnecting Concept2:', error);
+      setDisconnectError('Couldn’t disconnect Concept2. Please try again.');
+    } finally {
+      setDisconnecting(false);
     }
   };
 
@@ -365,9 +375,7 @@ export const ProfilePage: React.FC = () => {
     return (
       <div
         role={error ? 'alert' : 'status'}
-        className={`mt-3 flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm ${error
-          ? 'border-red-300 bg-red-50 text-red-900'
-          : 'border-emerald-300 bg-emerald-50 text-emerald-900'}`}
+        className={`pb-feedback pb-profile-feedback ${error ? 'pb-error' : ''}`}
       >
         <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
         <div>
@@ -381,7 +389,6 @@ export const ProfilePage: React.FC = () => {
   const isSyncing = activeWorkoutAction === 'sync';
   const isReconciling = activeWorkoutAction === 'reconcile';
   const isRecalculating = activeWorkoutAction === 'recalculate';
-  const workoutButtonClass = 'inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[14rem]';
 
   // Filter PR stats by selected sport
   const filteredPRStats = prStats.filter(stat => {
@@ -390,433 +397,181 @@ export const ProfilePage: React.FC = () => {
   });
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
+    return <div className="pb-page-status" role="status"><LoadingSpinner size="lg" /> Loading profile…</div>;
   }
 
+  const workoutActions = [
+    {
+      key: 'sync', icon: RefreshCw, title: 'New workouts',
+      description: 'Import workouts you’ve added to your Concept2 Logbook.',
+      label: isSyncing ? syncStatus === 'processing' ? 'Updating PRs…' : 'Syncing new data…' : 'Sync new data',
+      pending: isSyncing, run: handleSyncData,
+    },
+    {
+      key: 'reconcile', icon: History, title: 'Edited or deleted workouts',
+      description: 'Update your history and personal bests after changing workouts in Concept2.',
+      label: isReconciling ? 'Checking history…' : 'Sync edits and deletions',
+      pending: isReconciling, run: handleReconcileHistory,
+    },
+    {
+      key: 'recalculate', icon: Trophy, title: 'Personal records',
+      description: 'Rebuild records from the workouts already in PB Dash.',
+      label: isRecalculating ? 'Recalculating…' : 'Recalculate all PRs',
+      pending: isRecalculating, run: handleRecalculatePRs,
+    },
+  ] as const;
+  const isPrivate = profile?.private !== false;
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900">Profile</h1>
-        <p className="text-slate-600 mt-1">Manage your account and preferences</p>
-      </div>
-
-      {/* User Information Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-        <div className="p-6 border-b border-slate-200">
-          <div className="flex items-center space-x-3">
-            <User className="w-5 h-5 text-slate-600" />
-            <h2 className="text-xl font-semibold text-slate-900">User Information</h2>
-          </div>
-        </div>
-        
-        <div className="p-6 space-y-6">
-          {/* Google Profile Info with Sign Out Button */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-teal-500 rounded-full flex items-center justify-center">
-                {user?.photoURL ? (
-                  <img 
-                    src={user.photoURL} 
-                    alt="Profile" 
-                    className="w-16 h-16 rounded-full"
-                  />
-                ) : (
-                  <User className="w-8 h-8 text-white" />
-                )}
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900">
-                  {user?.displayName || 'User'}
-                </h3>
-                <p className="text-slate-600">{user?.email}</p>
-                <p className="text-sm text-slate-500">Google Account</p>
-              </div>
-            </div>
-            
-            {/* Sign Out Button */}
-            <button
-              onClick={handleSignOut}
-              className="flex items-center space-x-2 px-4 py-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors duration-200"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="text-sm font-medium">Sign Out</span>
-            </button>
-          </div>
-
-          {/* Account Details Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="pb-profile">
+      <section className="pb-profile-hero pb-grid-surface">
+        <div>
+          <h1>Profile</h1>
+          <div className="pb-profile-identity">
+            <span className="pb-avatar">
+              {user?.photoURL ? <img src={user.photoURL} alt="" /> : <User size={22} aria-hidden="true" />}
+            </span>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Concept2 User ID
-              </label>
-              <p className="text-slate-900 bg-slate-50 px-3 py-2 rounded-lg">
-                {profile?.user_id || 'Not connected'}
-              </p>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Member Since
-              </label>
-              <p className="text-slate-900 bg-slate-50 px-3 py-2 rounded-lg">
-                {formatDate(profile?.created_at)}
-              </p>
-            </div>
-            
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Last Concept2 Sync
-              </label>
-              <p className="text-slate-900 bg-slate-50 px-3 py-2 rounded-lg">
-                {formatLastSync(profile?.last_sync_at)}
-              </p>
+              {user?.displayName && <strong>{user.displayName}</strong>}
+              <p>{user?.email}</p>
             </div>
           </div>
         </div>
-      </div>
-
-      <section aria-labelledby="workout-data-heading" className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="flex items-center gap-3 border-b border-slate-200 p-6">
-          <RefreshCw className="w-5 h-5 text-slate-600" aria-hidden="true" />
-          <h2 id="workout-data-heading" className="text-xl font-semibold text-slate-900">Workout data</h2>
-        </div>
-
-        <div className="divide-y divide-slate-200">
-          <div className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h3 className="font-medium text-slate-900">New workouts</h3>
-              <p className="mt-1 text-sm text-slate-600">Import workouts you’ve added to your Concept2 Logbook.</p>
-              {renderWorkoutFeedback('sync')}
-            </div>
-            <button
-              onClick={handleSyncData}
-              disabled={workoutActionsDisabled}
-              aria-busy={isSyncing}
-              className={workoutButtonClass + ' bg-blue-600 text-white hover:bg-blue-700'}
-            >
-              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'motion-safe:animate-spin' : ''}`} aria-hidden="true" />
-              <span>{isSyncing ? syncStatus === 'processing' ? 'Updating PRs…' : 'Syncing new data…' : 'Sync New Data'}</span>
-            </button>
-          </div>
-
-          <div className="flex flex-col gap-3 bg-blue-50 px-6 py-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h3 className="font-medium text-slate-900">Edited or deleted workouts</h3>
-              <p className="mt-1 text-sm text-slate-600">Use this after changing an existing workout in Concept2. Your PRs will update too.</p>
-              {renderWorkoutFeedback('reconcile')}
-            </div>
-            <button
-              onClick={handleReconcileHistory}
-              disabled={workoutActionsDisabled}
-              aria-busy={isReconciling}
-              className={workoutButtonClass + ' border border-blue-300 bg-white text-blue-900 hover:bg-blue-100'}
-            >
-              <History className={`w-4 h-4 ${isReconciling ? 'motion-safe:animate-spin' : ''}`} aria-hidden="true" />
-              <span>{isReconciling ? 'Checking history…' : 'Sync edits and deletions'}</span>
-            </button>
-          </div>
-
-          <div className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h3 className="font-medium text-slate-900">Personal records</h3>
-              <p className="mt-1 text-sm text-slate-600">Rebuild PRs from the workouts already in PB Dash.</p>
-              {renderWorkoutFeedback('recalculate')}
-            </div>
-            <button
-              onClick={handleRecalculatePRs}
-              disabled={workoutActionsDisabled}
-              aria-busy={isRecalculating}
-              className={workoutButtonClass + ' border border-slate-300 bg-white text-slate-800 hover:bg-slate-50'}
-            >
-              {isRecalculating
-                ? <RefreshCw className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" />
-                : <Trophy className="h-4 w-4" aria-hidden="true" />}
-              <span>{isRecalculating ? 'Recalculating…' : 'Recalculate All PRs'}</span>
-            </button>
-          </div>
-        </div>
-
-        {!concept2Connected && (
-          <p className="border-t border-slate-200 px-6 py-3 text-sm text-amber-700">Connect Concept2 to manage your workout data.</p>
-        )}
+        <button type="button" className="pb-button" onClick={handleSignOut}><LogOut size={16} aria-hidden="true" /> Sign out</button>
       </section>
 
-      {/* Settings Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-        <div className="p-6 border-b border-slate-200">
-          <div className="flex items-center space-x-3">
-            <Settings className="w-5 h-5 text-slate-600" />
-            <h2 className="text-xl font-semibold text-slate-900">Settings</h2>
+      <section className="pb-panel pb-settings" aria-labelledby="workout-data-heading">
+        <header className="pb-settings-title">
+          <RefreshCw size={20} aria-hidden="true" />
+          <h2 id="workout-data-heading">Workout data</h2>
+        </header>
+        <dl className="pb-profile-facts">
+          <div><dt>Concept2 user ID</dt><dd>{profile?.user_id || '—'}</dd></div>
+          <div><dt>Member since</dt><dd>{formatDate(profile?.created_at)}</dd></div>
+          <div><dt>Last Concept2 sync</dt><dd>{formatLastSync(profile?.last_sync_at)}</dd></div>
+        </dl>
+        {!concept2Connected && (
+          <div className="pb-setting-row">
+            <p>Connect Concept2 to manage your workout data.</p>
+            <Link className="pb-button pb-primary" to="/dashboard">Connect Logbook</Link>
+          </div>
+        )}
+        {workoutActions.map(({ key, icon: Icon, title, description, label, pending, run }) => (
+          <div className="pb-setting-row" key={key}>
+            <div>
+              <h3>{title}</h3>
+              <p>{description}</p>
+              {renderWorkoutFeedback(key)}
+            </div>
+            <button type="button" className={`pb-button ${key === 'sync' ? 'pb-primary' : ''}`}
+              disabled={workoutActionsDisabled} aria-busy={pending} onClick={run}>
+              {pending ? <LoadingSpinner size="sm" /> : <Icon size={16} aria-hidden="true" />} {label}
+            </button>
+          </div>
+        ))}
+      </section>
+
+      <section className="pb-panel pb-settings" aria-labelledby="preferences-title">
+        <header className="pb-settings-title"><Settings size={20} aria-hidden="true" /><h2 id="preferences-title">Training preferences</h2></header>
+        <div className="pb-setting-row">
+          <div><h3>Default machine</h3><p>Choose which machine to show when you first open the dashboard.</p></div>
+          <div className="pb-switch" role="group" aria-label="Default machine">
+            {(['rower', 'bike', 'skierg'] as const).map(sport => (
+              <button type="button" key={sport} onClick={() => handleDefaultSportChange(sport)}
+                disabled={saving} aria-pressed={selectedSport === sport}>{SPORT_MAPPING[sport]}</button>
+            ))}
           </div>
         </div>
-        
-        <div className="p-6 space-y-6">
-          {/* Default Sport Setting */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-slate-900">Default Sport</h3>
-              <p className="text-sm text-slate-600">Choose which sport to show by default on dashboard</p>
-            </div>
-            <div className="flex items-center bg-slate-100 rounded-lg p-1">
-              {(['rower', 'bike', 'skierg'] as SportType[]).map((sport) => (
-                <button
-                  key={sport}
-                  onClick={() => handleDefaultSportChange(sport)}
-                  disabled={saving}
-                  className={`px-3 py-1 rounded-md text-sm font-medium transition-colors duration-200 ${
-                    profile?.default_sport === sport
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {SPORT_MAPPING[sport]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Season vs Year Toggle */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-slate-900">Default PR View</h3>
-              <p className="text-sm text-slate-600">Choose whether to show seasonal or yearly personal records by default</p>
-            </div>
-            <div className="flex items-center bg-slate-100 rounded-lg p-1">
-              <button
-                onClick={() => handleSeasonViewToggle(true)}
-                disabled={saving}
-                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors duration-200 ${
-                  profile?.season_view !== false
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Season
-              </button>
-              <button
-                onClick={() => handleSeasonViewToggle(false)}
-                disabled={saving}
-                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors duration-200 ${
-                  profile?.season_view === false
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Year
-              </button>
-            </div>
+        <div className="pb-setting-row">
+          <div><h3>Record periods</h3><p>Group personal bests by training season or calendar year.</p></div>
+          <div className="pb-switch" role="group" aria-label="Record periods">
+            <button type="button" onClick={() => handleSeasonViewToggle(true)} disabled={saving} aria-pressed={profile?.season_view !== false}>Season</button>
+            <button type="button" onClick={() => handleSeasonViewToggle(false)} disabled={saving} aria-pressed={profile?.season_view === false}>Year</button>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* PR Image Generator Section */}
       {concept2Connected && !prLoading && filteredPRStats.length > 0 && (
-        <PRImageGenerator 
-          prStats={filteredPRStats}
-          selectedSport={selectedSport}
-          userDisplayName={user?.displayName || 'Athlete'}
-        />
+        <Suspense fallback={<p className="pb-panel pb-records-empty" role="status">Loading image tools…</p>}>
+          <PRImageGenerator prStats={filteredPRStats} selectedSport={selectedSport} userDisplayName={user?.displayName || 'Athlete'} />
+        </Suspense>
       )}
 
-      {/* Privacy Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-        <div className="p-6 border-b border-slate-200">
-          <div className="flex items-center space-x-3">
-            <Shield className="w-5 h-5 text-slate-600" />
-            <h2 className="text-xl font-semibold text-slate-900">Privacy</h2>
-          </div>
+      <section className="pb-panel pb-settings" aria-labelledby="privacy-title">
+        <header className="pb-settings-title"><Shield size={20} aria-hidden="true" /><h2 id="privacy-title">Privacy</h2></header>
+        <div className="pb-setting-row">
+          <div><h3>Profile visibility</h3><p>Control whether your profile can be viewed publicly.</p></div>
+          <button className="pb-button" type="button" onClick={() => handlePrivacyToggle(!isPrivate)} disabled={saving}>
+            {isPrivate ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+            {isPrivate ? 'Private' : 'Public'}
+          </button>
         </div>
-        
-        <div className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-slate-900">Profile Visibility</h3>
-              <p className="text-sm text-slate-600">Control whether your profile can be viewed publicly</p>
-            </div>
-            <button
-              onClick={() => handlePrivacyToggle(!(profile?.private !== false))}
-              disabled={saving}
-              className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors duration-200 ${
-                profile?.private !== false
-                  ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  : 'bg-green-100 text-green-700 hover:bg-green-200'
-              }`}
-            >
-              {profile?.private !== false ? (
-                <>
-                  <EyeOff className="w-4 h-4" />
-                  <span>Private</span>
-                </>
-              ) : (
-                <>
-                  <Eye className="w-4 h-4" />
-                  <span>Public</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
+      </section>
 
-      {/* Danger Zone */}
-      <div className="bg-white rounded-xl shadow-sm border border-red-200">
-        <div className="p-6 border-b border-red-200">
-          <div className="flex items-center space-x-3">
-            <AlertTriangle className="w-5 h-5 text-red-600" />
-            <h2 className="text-xl font-semibold text-red-900">Danger Zone</h2>
-          </div>
+      <section className="pb-panel pb-settings pb-risk" aria-labelledby="account-actions-title">
+        <header className="pb-settings-title"><AlertTriangle size={20} aria-hidden="true" /><h2 id="account-actions-title">Account actions</h2></header>
+        <div className="pb-setting-row">
+          <div><h3>Disconnect Concept2</h3><p>Remove access to your Logbook. You can reconnect anytime.</p></div>
+          <button className="pb-button pb-danger" type="button" disabled={!concept2Connected}
+            onClick={() => { setDisconnectError(''); setShowDisconnectConfirm(true); }}>
+            <Unlink size={16} aria-hidden="true" /> Disconnect
+          </button>
         </div>
-        
-        <div className="p-6 space-y-6">
-          {/* Disconnect Concept2 */}
-          <div className="flex items-center justify-between p-4 border border-orange-200 rounded-lg bg-orange-50">
-            <div>
-              <h3 className="text-sm font-medium text-orange-900">Disconnect Concept2</h3>
-              <p className="text-sm text-orange-700">Remove Concept2 authorization. You can reconnect anytime.</p>
-            </div>
-            <button
-              onClick={() => setShowDisconnectConfirm(true)}
-              disabled={!concept2Connected}
-              className="flex items-center space-x-2 px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Unlink className="w-4 h-4" />
-              <span>Disconnect</span>
-            </button>
-          </div>
-
-          {/* Delete Account */}
-          <div className="flex items-center justify-between p-4 border border-red-200 rounded-lg bg-red-50">
-            <div>
-              <h3 className="text-sm font-medium text-red-900">Delete Account</h3>
-              <p className="text-sm text-red-700">Permanently delete your account and all data. This cannot be undone.</p>
-            </div>
-            <button
-              onClick={() => {
-                setDeleteError('');
-                setShowDeleteConfirm(true);
-              }}
-              disabled={deleting}
-              className="flex items-center space-x-2 px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {deleting ? (
-                <LoadingSpinner size="sm" className="text-white" />
-              ) : (
-                <Trash2 className="w-4 h-4" />
-              )}
-              <span>{deleting ? 'Deleting...' : 'Delete'}</span>
-            </button>
-          </div>
+        <div className="pb-setting-row">
+          <div><h3>Delete account</h3><p>Permanently delete your PB Dash account and data.</p></div>
+          <button type="button" className="pb-button pb-danger" disabled={deleting}
+            onClick={() => { setDeleteError(''); setShowDeleteConfirm(true); }}>
+            <Trash2 size={16} aria-hidden="true" /> Delete account
+          </button>
         </div>
-      </div>
+      </section>
 
-      {/* Disconnect Confirmation Modal */}
       {showDisconnectConfirm && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 shadow-2xl border border-slate-200 max-w-md w-full">
-            <div className="text-center">
-              <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Unlink className="w-6 h-6 text-orange-600" />
-              </div>
-              
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">
-                Disconnect Concept2?
-              </h3>
-              
-              <p className="text-slate-600 mb-6">
-                This will remove your Concept2 authorization. Your data will remain saved, but you won't be able to sync new workouts until you reconnect.
-              </p>
-              
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowDisconnectConfirm(false)}
-                  className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors duration-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDisconnectConcept2}
-                  className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors duration-200"
-                >
-                  Disconnect
-                </button>
-              </div>
-            </div>
+        <ConfirmationDialog title="Disconnect Concept2?" busy={disconnecting} close={() => setShowDisconnectConfirm(false)}>
+          <p>Your imported data stays in PB Dash. Reconnect your Logbook to sync new workouts.</p>
+          {disconnectError && <p className="pb-feedback pb-error" role="alert">{disconnectError}</p>}
+          <div className="pb-dialog-actions">
+            <button className="pb-button" type="button" onClick={() => setShowDisconnectConfirm(false)} disabled={disconnecting}>Cancel</button>
+            <button className="pb-button pb-danger" type="button" onClick={handleDisconnectConcept2} disabled={disconnecting}>{disconnecting ? 'Disconnecting…' : 'Disconnect'}</button>
           </div>
-        </div>
+        </ConfirmationDialog>
       )}
 
-      {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 shadow-2xl border border-slate-200 max-w-md w-full">
-            <div className="text-center">
-              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Trash2 className="w-6 h-6 text-red-600" />
-              </div>
-              
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">
-                Delete Account?
-              </h3>
-              
-              <p className="text-slate-600 mb-4">
-                This deletes your PB Dash account, imported workouts, personal records, preferences, and shared PB images. Your original workouts stay in the Concept2 Logbook.
-              </p>
-              
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Type "DELETE" to confirm:
-                </label>
-                <input
-                  type="text"
-                  value={deleteConfirmText}
-                  onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  disabled={deleting}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 disabled:opacity-50"
-                  placeholder="DELETE"
-                />
-              </div>
-
-              {deleteError && (
-                <p role="alert" className="mb-4 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
-                  {deleteError}
-                </p>
-              )}
-              
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => {
-                    setShowDeleteConfirm(false);
-                    setDeleteConfirmText('');
-                  }}
-                  disabled={deleting}
-                  className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors duration-200 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDeleteAccount}
-                  disabled={deleteConfirmText !== 'DELETE' || deleting}
-                  className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-                >
-                  {deleting ? (
-                    <>
-                      <LoadingSpinner size="sm" className="text-white" />
-                      <span>Deleting...</span>
-                    </>
-                  ) : (
-                    <span>Delete Account</span>
-                  )}
-                </button>
-              </div>
-            </div>
+        <ConfirmationDialog title="Delete account?" busy={deleting}
+          close={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); }}>
+          <p>This deletes your PB Dash account, imported workouts, personal records, preferences and shared images. Your original workouts stay in the Concept2 Logbook.</p>
+          <label htmlFor="delete-confirmation">Type DELETE to confirm</label>
+          <input className="pb-input" id="delete-confirmation" value={deleteConfirmText}
+            onChange={event => setDeleteConfirmText(event.target.value)} disabled={deleting} autoComplete="off" />
+          {deleteError && <p className="pb-feedback pb-error" role="alert">{deleteError}</p>}
+          <div className="pb-dialog-actions">
+            <button className="pb-button" type="button" onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); }} disabled={deleting}>Cancel</button>
+            <button className="pb-button pb-danger" type="button" onClick={handleDeleteAccount} disabled={deleteConfirmText !== 'DELETE' || deleting}>
+              {deleting ? 'Deleting…' : 'Delete account'}
+            </button>
           </div>
-        </div>
+        </ConfirmationDialog>
       )}
     </div>
   );
 };
+
+function ConfirmationDialog({ title, busy, close, children }: { title: string; busy: boolean; close: () => void; children: React.ReactNode }) {
+  const dialog = React.useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const element = dialog.current;
+    element?.showModal();
+    return () => element?.close();
+  }, []);
+
+  return (
+    <dialog className="pb-dialog" ref={dialog} aria-labelledby="pb-dialog-title" onCancel={event => {
+      event.preventDefault();
+      if (!busy) close();
+    }}>
+      <h2 id="pb-dialog-title">{title}</h2>
+      {children}
+    </dialog>
+  );
+}

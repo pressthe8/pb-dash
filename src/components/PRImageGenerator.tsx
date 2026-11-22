@@ -290,16 +290,16 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
   const currentSeason = getCurrentSeason();
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-      <div className="p-4 sm:p-6 border-b border-slate-200">
+    <div className="pb-panel pb-settings">
+      <div className="p-4 sm:p-6 border-b border-[var(--pb-line)]">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg">
-              <ImageIcon className="w-5 h-5 text-white" />
+            <div className="p-2 pb-record-icon">
+              <ImageIcon className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Generate PB Image (Beta)</h2>
-              <p className="text-sm text-slate-600">
+              <h2 className="text-lg sm:text-xl font-semibold text-[var(--pb-text)]">Share a PB image</h2>
+              <p className="text-sm text-[var(--pb-muted)]">
                 Create a shareable image of your personal bests ({availableEvents.length} events with data)
               </p>
             </div>
@@ -312,7 +312,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
               <button
                 onClick={generateImage}
                 disabled={isGenerating || isUploading || availableEvents.length === 0}
-                className="flex items-center justify-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="pb-button pb-primary"
               >
                 {isGenerating || isUploading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -329,7 +329,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
                 {/* Download Button */}
                 <button
                   onClick={downloadImage}
-                  className="flex items-center justify-center space-x-2 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200"
+                  className="pb-button"
                 >
                   <Download className="w-4 h-4" />
                   <span className="text-sm">Download</span>
@@ -339,7 +339,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
                 {uploadedImageUrl && (
                   <button
                     onClick={openImageUrl}
-                    className="flex items-center justify-center space-x-2 px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors duration-200"
+                    className="pb-button"
                   >
                     <ExternalLink className="w-4 h-4" />
                     <span className="text-sm">Open URL</span>
@@ -350,7 +350,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
                 {uploadedImageUrl && (
                   <button
                     onClick={copyBBCode}
-                    className="flex items-center justify-center space-x-2 px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors duration-200"
+                    className="pb-button"
                   >
                     <Copy className="w-4 h-4" />
                     <span className="text-sm">Copy BB Code</span>
@@ -361,7 +361,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
                 <button
                   onClick={generateImage}
                   disabled={isGenerating || isUploading}
-                  className="flex items-center justify-center space-x-2 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="pb-button"
                 >
                   {isGenerating || isUploading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -377,8 +377,8 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
         
         {/* Upload Error Display */}
         {uploadError && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-700">{uploadError}</p>
+          <div className="pb-feedback pb-error mt-4">
+            <p className="text-sm">{uploadError}</p>
           </div>
         )}
       </div>
@@ -387,9 +387,9 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
         {/* Show message if no events available */}
         {availableEvents.length === 0 && (
           <div className="text-center py-8">
-            <ImageIcon className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-slate-900 mb-2">No Personal Bests Available</h3>
-            <p className="text-slate-600">
+            <ImageIcon className="w-12 h-12 text-[var(--pb-muted)] mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-[var(--pb-text)] mb-2">No Personal Bests Available</h3>
+            <p className="text-[var(--pb-muted)]">
               Complete some {SPORT_MAPPING[selectedSport].toLowerCase()} workouts to generate your PB image.
             </p>
           </div>
@@ -399,15 +399,15 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
         {previewImageUrl && (
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-slate-900">Generated Image</h3>
+              <h3 className="text-lg font-semibold text-[var(--pb-text)]">Generated Image</h3>
               {uploadedImageUrl && (
-                <div className="flex items-center space-x-2 text-sm text-green-600">
+                <div className="flex items-center space-x-2 text-sm text-[var(--pb-mint)]">
                   <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                   <span>Uploaded & Shareable</span>
                 </div>
               )}
             </div>
-            <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+            <div className="border border-[var(--pb-line)] rounded-lg p-4 bg-[#15121e]">
               <img 
                 src={previewImageUrl}
                 alt="Generated PB Image" 
@@ -419,61 +419,63 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
         )}
 
         {/* Preview Table - Only show when we have events and (no image generated or on larger screens) */}
-        {availableEvents.length > 0 && (!(generatedImageUrl || uploadedImageUrl) || window.innerWidth >= 640) && (
-          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-            <h3 className="text-sm font-medium text-slate-700 mb-3">
+        {availableEvents.length > 0 && (
+          <div className={`bg-[#15121e] p-4 rounded-lg border border-[var(--pb-line)] ${generatedImageUrl || uploadedImageUrl ? 'hidden sm:block' : ''}`}>
+            <h3 className="text-sm font-medium text-[var(--pb-muted)] mb-3">
               Preview ({availableEvents.length} events)
             </h3>
-            <div className="bg-white p-2 rounded border text-xs overflow-x-auto">
+            <div className="bg-[var(--pb-panel)] p-2 rounded border border-[var(--pb-line)] text-xs overflow-x-auto">
               <table className="w-full border-collapse">
-                {/* Row 1: Event Headers */}
-                <tr className="bg-blue-50">
-                  <td className="py-1 px-2 font-bold text-center border border-slate-400 w-16">PB</td>
-                  {availableEvents.map((event, index) => (
-                    <td key={event.key} className={`py-1 px-2 font-bold text-center border border-slate-400 ${index % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100'}`}>
-                      {event.label}
-                    </td>
-                  ))}
-                </tr>
-
-                {/* Row 2: Record Values */}
-                <tr>
-                  <td className="py-1 px-2 font-bold text-center border border-slate-400">Record</td>
-                  {availableEvents.map((event, index) => {
-                    const stat = getStatForEvent(event.key);
-                    return (
-                      <td key={event.key} className={`py-1 px-2 font-bold text-center border border-slate-400 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
-                        {stat ? formatValue(stat, event) : '-'}
+                <tbody>
+                  {/* Row 1: Event Headers */}
+                  <tr className="bg-[#2b233a]">
+                    <td className="py-1 px-2 font-bold text-center border border-[var(--pb-line-strong)] w-16">PB</td>
+                    {availableEvents.map((event, index) => (
+                      <td key={event.key} className={`py-1 px-2 font-bold text-center border border-[var(--pb-line-strong)] ${index % 2 === 0 ? 'bg-[#2b233a]' : 'bg-[#322743]'}`}>
+                        {event.label}
                       </td>
-                    );
-                  })}
-                </tr>
+                    ))}
+                  </tr>
 
-                {/* Row 3: Dates */}
-                <tr>
-                  <td className="py-1 px-2 font-bold text-center border border-slate-400">Date</td>
-                  {availableEvents.map((event, index) => {
-                    const stat = getStatForEvent(event.key);
-                    return (
-                      <td key={event.key} className={`py-1 px-2 text-center border border-slate-400 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
-                        {stat?.all_time_record ? formatDate(stat.all_time_record.achieved_at) : '-'}
-                      </td>
-                    );
-                  })}
-                </tr>
+                  {/* Row 2: Record Values */}
+                  <tr>
+                    <td className="py-1 px-2 font-bold text-center border border-[var(--pb-line-strong)]">Record</td>
+                    {availableEvents.map((event, index) => {
+                      const stat = getStatForEvent(event.key);
+                      return (
+                        <td key={event.key} className={`py-1 px-2 font-bold text-center border border-[var(--pb-line-strong)] ${index % 2 === 0 ? 'bg-[var(--pb-panel)]' : 'bg-[#15121e]'}`}>
+                          {stat ? formatValue(stat, event) : '-'}
+                        </td>
+                      );
+                    })}
+                  </tr>
 
-                {/* Row 4: Season Records */}
-                <tr className="bg-blue-50">
-                  <td className="py-1 px-2 font-bold text-center border border-slate-400">{currentSeason}</td>
-                  {availableEvents.map((event, index) => {
-                    const stat = getStatForEvent(event.key);
-                    return (
-                      <td key={event.key} className={`py-1 px-2 text-center border border-slate-400 ${index % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100'}`}>
-                        {stat ? formatValue(stat, event, true) : '-'}
-                      </td>
-                    );
-                  })}
-                </tr>
+                  {/* Row 3: Dates */}
+                  <tr>
+                    <td className="py-1 px-2 font-bold text-center border border-[var(--pb-line-strong)]">Date</td>
+                    {availableEvents.map((event, index) => {
+                      const stat = getStatForEvent(event.key);
+                      return (
+                        <td key={event.key} className={`py-1 px-2 text-center border border-[var(--pb-line-strong)] ${index % 2 === 0 ? 'bg-[var(--pb-panel)]' : 'bg-[#15121e]'}`}>
+                          {stat?.all_time_record ? formatDate(stat.all_time_record.achieved_at) : '-'}
+                        </td>
+                      );
+                    })}
+                  </tr>
+
+                  {/* Row 4: Season Records */}
+                  <tr className="bg-[#2b233a]">
+                    <td className="py-1 px-2 font-bold text-center border border-[var(--pb-line-strong)]">{currentSeason}</td>
+                    {availableEvents.map((event, index) => {
+                      const stat = getStatForEvent(event.key);
+                      return (
+                        <td key={event.key} className={`py-1 px-2 text-center border border-[var(--pb-line-strong)] ${index % 2 === 0 ? 'bg-[#2b233a]' : 'bg-[#322743]'}`}>
+                          {stat ? formatValue(stat, event, true) : '-'}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                </tbody>
               </table>
             </div>
           </div>
