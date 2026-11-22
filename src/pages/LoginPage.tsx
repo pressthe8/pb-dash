@@ -154,7 +154,7 @@ export const LoginPage: React.FC = () => {
                 <button type="button" aria-pressed={signingIn} onClick={() => changeMode('signin')} disabled={busy}>Sign in</button>
                 <button type="button" aria-pressed={!signingIn} onClick={() => changeMode('signup')} disabled={busy}>Create account</button>
               </div>
-              <h2 id="auth-title">{signingIn ? 'Welcome back.' : 'Start tracking PBs.'}</h2>
+              <h2 id="auth-title">{signingIn ? 'Welcome back.' : 'Check your PBs.'}</h2>
               <p className="pb-auth-intro">{signingIn ? 'Sign in to see your training.' : 'Create an account to connect your Logbook.'}</p>
 
               <button className="pb-button pb-google" type="button" onClick={handleGoogleSignIn} disabled={busy}>

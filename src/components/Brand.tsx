@@ -1,10 +1,10 @@
-import { ArrowUpRight, Timer } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export function Brand({ to }: { to: string }) {
   return (
     <Link className="pb-brand" to={to}>
-      <span className="pb-brand-mark"><Timer size={20} aria-hidden="true" /></span>
+      <span className="pb-brand-mark"><img src="/IMG_9029.PNG" alt="" width="35" height="35" /></span>
       <span>PB Dash</span>
     </Link>
   );

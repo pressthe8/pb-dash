@@ -25,7 +25,8 @@
 .pb-header { border-bottom: 1px solid var(--pb-line); background: #15121e; }
 .pb-mast { min-height: 70px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .pb-brand { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; font-size: 1.13rem; font-weight: 750; letter-spacing: -.04em; }
-.pb-brand-mark { display: grid; place-items: center; width: 35px; height: 35px; border-radius: 8px; background: var(--pb-lime); color: #171c0e; }
+.pb-brand-mark { display: grid; place-items: center; width: 35px; height: 35px; border-radius: 8px; overflow: hidden; }
+.pb-brand-mark img { width: 100%; height: 100%; object-fit: contain; }
 .pb-label { font: 600 .67rem/1.4 var(--pb-mono); letter-spacing: .085em; text-transform: uppercase; color: var(--pb-muted); }
 .pb-mast-note { text-align: right; }
 .pb-nav { display: flex; align-items: center; gap: 6px; margin-inline: auto; min-height: 100%; }
