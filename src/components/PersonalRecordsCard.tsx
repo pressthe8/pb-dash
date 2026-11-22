@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Trophy, Calendar, Clock, Ruler, TrendingUp, ChevronDown } from 'lucide-react';
+import { Trophy, Calendar, TrendingUp, ChevronDown } from 'lucide-react';
 import { PRStats, PREvent } from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
+import { formatWorkoutDate, seasonEndYear, workoutCalendar } from '../../functions/src/workoutCalendar';
 
 interface PersonalRecordsCardProps {
   prStats: PRStats[];
@@ -17,21 +18,7 @@ export const PersonalRecordsCard: React.FC<PersonalRecordsCardProps> = ({
   allPREvents
 }) => {
   // State management with localStorage persistence
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    const saved = localStorage.getItem('pr_view_mode');
-    return (saved as ViewMode) || 'season';
-  });
-
-  // Helper function to get season identifier from date
-  const getSeasonIdentifier = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = date.getMonth(); // 0-based (0 = January)
-    
-    // If January-April, use current year
-    // If May-December, use next year
-    const seasonEndYear = month < 4 ? year : year + 1;
-    return seasonEndYear.toString();
-  };
+  const [viewMode] = useState<ViewMode>(() => localStorage.getItem('pr_view_mode') === 'year' ? 'year' : 'season');
 
   // Helper function to format season display
   const formatSeasonDisplay = (seasonId: string): string => {
@@ -48,15 +35,10 @@ export const PersonalRecordsCard: React.FC<PersonalRecordsCardProps> = ({
 
     const periods = new Set<string>();
     
-    allPREvents.forEach(event => {
-      if (viewMode === 'year') {
-        const year = new Date(event.achieved_at).getFullYear().toString();
-        periods.add(year);
-      } else {
-        // Use season_identifier from the event
-        periods.add(event.season_identifier);
-      }
-    });
+    for (const event of allPREvents) {
+      const calendar = workoutCalendar(event.achieved_at);
+      if (calendar) periods.add(calendar[viewMode]);
+    }
 
     const sortedPeriods = Array.from(periods).sort((a, b) => {
       return parseInt(b) - parseInt(a); // Descending order (newest first)
@@ -69,7 +51,8 @@ export const PersonalRecordsCard: React.FC<PersonalRecordsCardProps> = ({
         const currentYear = new Date().getFullYear().toString();
         defaultPeriod = sortedPeriods.includes(currentYear) ? currentYear : sortedPeriods[0];
       } else {
-        const currentSeason = getSeasonIdentifier(new Date());
+        const today = new Date();
+        const currentSeason = String(seasonEndYear(today.getFullYear(), today.getMonth() + 1));
         defaultPeriod = sortedPeriods.includes(currentSeason) ? currentSeason : sortedPeriods[0];
       }
     }
@@ -92,24 +75,18 @@ export const PersonalRecordsCard: React.FC<PersonalRecordsCardProps> = ({
 
   // Enhanced stats with period-specific records
   const enhancedStats = useMemo(() => {
-    if (!selectedPeriod) return prStats;
-
     return prStats.map(stat => {
       // Find the record for the selected period
-      const periodRecord = allPREvents.find(event => {
+      const periodRecord = selectedPeriod ? allPREvents.find(event => {
         if (event.activity_key !== stat.activity_key) return false;
         
-        if (viewMode === 'year') {
-          const eventYear = new Date(event.achieved_at).getFullYear().toString();
-          return eventYear === selectedPeriod && event.pr_scope.includes(`year-${selectedPeriod}`);
-        } else {
-          return event.season_identifier === selectedPeriod && event.pr_scope.includes(`season-${selectedPeriod}`);
-        }
-      });
+        return workoutCalendar(event.achieved_at)?.[viewMode] === selectedPeriod &&
+          event.pr_scope.includes(`${viewMode}-${selectedPeriod}`);
+      }) : undefined;
 
       return {
         ...stat,
-        selected_period_record: periodRecord || null
+        selected_period_record: periodRecord ?? null
       };
     });
   }, [prStats, allPREvents, selectedPeriod, viewMode]);
@@ -122,14 +99,6 @@ export const PersonalRecordsCard: React.FC<PersonalRecordsCardProps> = ({
 
   const formatMetricValue = (value: number, metricType: string) => {
     return metricType === 'time' ? formatTime(value) : formatDistance(value);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
   };
 
   if (loading) {
@@ -234,7 +203,7 @@ export const PersonalRecordsCard: React.FC<PersonalRecordsCardProps> = ({
                           {formatMetricValue(stat.all_time_record.metric_value, stat.all_time_record.metric_type)}
                         </div>
                         <div className="text-xs text-amber-700">
-                          {formatDate(stat.all_time_record.achieved_at)}
+                          {formatWorkoutDate(stat.all_time_record.achieved_at)}
                         </div>
                       </div>
                     ) : (
@@ -263,20 +232,20 @@ export const PersonalRecordsCard: React.FC<PersonalRecordsCardProps> = ({
                         }
                       </span>
                     </div>
-                    {(stat as any).selected_period_record ? (
+                    {stat.selected_period_record ? (
                       <div>
                         <div className={`text-lg font-bold ${
                           viewMode === 'season' ? 'text-blue-900' : 'text-green-900'
                         }`}>
                           {formatMetricValue(
-                            (stat as any).selected_period_record.metric_value, 
-                            (stat as any).selected_period_record.metric_type
+                            stat.selected_period_record.metric_value,
+                            stat.selected_period_record.metric_type
                           )}
                         </div>
                         <div className={`text-xs ${
                           viewMode === 'season' ? 'text-blue-700' : 'text-green-700'
                         }`}>
-                          {formatDate((stat as any).selected_period_record.achieved_at)}
+                          {formatWorkoutDate(stat.selected_period_record.achieved_at)}
                         </div>
                       </div>
                     ) : (

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './components/AuthProvider';
 import { useAuth } from './hooks/useAuth';
@@ -8,6 +8,9 @@ import { DashboardPage } from './pages/DashboardPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { LoadingSpinner } from './components/LoadingSpinner';
+import { REVIEW_PATH } from './features/rowingReview/reviewConfig';
+
+const RowingReviewPage = lazy(() => import('./features/rowingReview/RowingReviewPage'));
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
@@ -38,6 +41,13 @@ const AppRoutes: React.FC = () => {
     <Routes>
       <Route path="/login" element={!user ? <LoginPage /> : <Navigate to="/dashboard" replace />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
+      <Route path={REVIEW_PATH} element={
+        <ProtectedRoute>
+          <Suspense fallback={<div className="min-h-screen grid place-items-center"><LoadingSpinner size="lg" /></div>}>
+            <RowingReviewPage />
+          </Suspense>
+        </ProtectedRoute>
+      } />
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />

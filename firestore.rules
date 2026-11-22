@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // Only Firebase Admin in Cloud Functions can access credentials and OAuth attempts.
+    match /user_tokens/{tokenId} {
+      allow read, write: if false;
+    }
+    match /concept2_oauth_states/{userId} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) &&
+        !exists(/databases/$(database)/documents/account_deletions/$(userId));
+
+      match /results/{resultId} {
+        allow read: if isOwner(userId);
+      }
+      match /pr_types/{prTypeId} {
+        allow read: if isOwner(userId);
+      }
+      match /pr_events/{prEventId} {
+        allow read: if isOwner(userId);
+      }
+    }
+  }
+}

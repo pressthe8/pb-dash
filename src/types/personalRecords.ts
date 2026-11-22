@@ -1,3 +1,5 @@
+import type { ErgSport } from '../../functions/src/workoutSport';
+
 export interface PRType {
   id: string;
   activity_name: string;        // Display name: "2K Row", "60min Row"
@@ -16,11 +18,11 @@ export interface PREvent {
   user_id: string;
   results_id: string;           // Reference to original result
   activity_key: string;         // Links to pr_types.activity_key
-  sport: SportType;            // NEW: Sport field for efficient filtering
+  sport: string;
   pr_scope: string[];          // ["all-time", "season-2025", "year-2024"]
   metric_type: "time" | "distance";
   metric_value: number;        // Time in seconds OR distance in meters
-  achieved_at: string;         // ISO timestamp
+  achieved_at: string;         // As recorded in the Concept2 workout date field
   season_identifier: string;   // "2025" (end year of season)
   previous_record: number | null;  // Previous best value (null for first PR)
   pace_per_500m: number | null; // Add the new pace field
@@ -59,7 +61,7 @@ export interface UserProfile {
 }
 
 // NEW: Sport filtering types - Updated to use 'bike' instead of 'bikeerg'
-export type SportType = 'rower' | 'bike' | 'skierg';
+export type SportType = ErgSport;
 export type SportDisplayType = 'Row' | 'Bike' | 'Ski';
 
 // Sport mapping constant - Updated to use 'bike'

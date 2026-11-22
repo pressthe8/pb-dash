@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { auth } from '../config/firebase';
 import { usePersonalRecords } from '../hooks/usePersonalRecords';
-import { Concept2ApiService } from '../services/concept2Api';
 import { FirebaseService } from '../services/firebaseService';
 import { CloudFunctionsService } from '../services/cloudFunctions';
 import { DataCacheService } from '../services/dataCacheService';
@@ -10,9 +9,24 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { PersonalRecordsCard } from '../components/PersonalRecordsCard';
 import { PersonalBestsTableView } from '../components/PersonalBestsTableView';
 import { StoredResult } from '../types/concept2';
-import { SportType, SPORT_MAPPING } from '../types/personalRecords';
+import { PREvent, SportType, SPORT_MAPPING, UserProfile } from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
-import { Waves, TrendingUp, Link, CheckCircle, AlertTriangle, Trophy, Ruler, Clock, Bike, Mountain } from 'lucide-react';
+import { asErgSport } from '../../functions/src/workoutSport';
+import { REVIEW_PATH, REVIEW_TITLE } from '../features/rowingReview/reviewConfig';
+import { Waves, TrendingUp, Link, AlertTriangle, Ruler, Clock, Bike, Mountain } from 'lucide-react';
+
+// Set to false to preview the legacy PB cards during development.
+const useNewTableView = true;
+
+function RowingReviewLink() {
+  return (
+    <RouterLink to={REVIEW_PATH}
+      className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900">
+      <Waves className="h-4 w-4" aria-hidden="true" />
+      {REVIEW_TITLE}
+    </RouterLink>
+  );
+}
 
 interface DashboardStats {
   totalWorkouts: number;
@@ -25,33 +39,23 @@ export const DashboardPage: React.FC = () => {
   const { 
     user, 
     concept2Connected, 
-    checkConcept2Connection, 
-    clearConcept2Connection,
     connectionExpired,
     clearConnectionExpired,
     syncStatus
   } = useAuth();
-  const { prStats, loading: prLoading, error: prError, loadPRData, processNewResultsAndRecalculate, getPREvents } = usePersonalRecords();
+  const { prStats, loading: prLoading, error: prError, getPREvents } = usePersonalRecords();
   const [allResults, setAllResults] = useState<StoredResult[]>([]);
-  const [allPREvents, setAllPREvents] = useState<any[]>([]);
+  const [allPREvents, setAllPREvents] = useState<PREvent[]>([]);
   const [loading, setLoading] = useState(true);
   const hasLoadedDataRef = useRef(false);
-  const [stats, setStats] = useState<DashboardStats>({
-    totalWorkouts: 0,
-    totalDistance: 0,
-    totalTime: 0,
-    averageDistance: 0
-  });
 
   // Sport filtering state
   const [selectedSport, setSelectedSport] = useState<SportType>('rower');
   const [hasLoadedSportPreference, setHasLoadedSportPreference] = useState(false);
-  const [userProfile, setUserProfile] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
-  // DEV ONLY: Toggle between old and new PB views
-  const [useNewTableView, setUseNewTableView] = useState(true);
-
-  const concept2Api = Concept2ApiService.getInstance();
+  const [connecting, setConnecting] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const firebaseService = FirebaseService.getInstance();
   const cloudFunctions = CloudFunctionsService.getInstance();
   const cacheService = DataCacheService.getInstance();
@@ -60,14 +64,14 @@ export const DashboardPage: React.FC = () => {
   const determineDefaultSport = useCallback((results: StoredResult[], profileSetting?: SportType): SportType => {
     if (profileSetting) return profileSetting;
     
-    // Count results by sport
-    const sportCounts = results.reduce((acc, result) => {
-      acc[result.type] = (acc[result.type] || 0) + 1;
-      return acc;
-    }, {} as Record<SportType, number>);
-    
+    const sportCounts = new Map<SportType, number>();
+    for (const result of results) {
+      const sport = asErgSport(result.type);
+      if (sport) sportCounts.set(sport, (sportCounts.get(sport) ?? 0) + 1);
+    }
+
     // Return sport with highest count, fallback to 'rower'
-    const entries = Object.entries(sportCounts) as [SportType, number][];
+    const entries = [...sportCounts];
     if (entries.length === 0) return 'rower';
     
     return entries.reduce((a, b) => a[1] > b[1] ? a : b)[0];
@@ -76,8 +80,8 @@ export const DashboardPage: React.FC = () => {
   // Reason: Load sport preference from session storage and profile
   useEffect(() => {
     if (!hasLoadedSportPreference && allResults.length > 0) {
-      const sessionSport = localStorage.getItem('dashboard_sport_filter') as SportType;
-      const defaultSport = determineDefaultSport(allResults, userProfile?.default_sport);
+      const sessionSport = asErgSport(localStorage.getItem('dashboard_sport_filter'));
+      const defaultSport = determineDefaultSport(allResults, asErgSport(userProfile?.default_sport));
       
       setSelectedSport(sessionSport || defaultSport);
       setHasLoadedSportPreference(true);
@@ -108,7 +112,7 @@ export const DashboardPage: React.FC = () => {
 
   // Reason: Filter data based on selected sport - NOW USING DIRECT SPORT FIELD
   const filteredResults = useMemo(() => 
-    allResults.filter(result => result.type === selectedSport), 
+    allResults.filter(result => asErgSport(result.type) === selectedSport),
     [allResults, selectedSport]
   );
 
@@ -117,21 +121,14 @@ export const DashboardPage: React.FC = () => {
     [filteredResults, calculateStats]
   );
 
-  // Reason: Filter PR stats using direct sport field from PR events (more efficient)
-  const filteredPRStats = useMemo(() => 
-    prStats.filter(stat => {
-      // Check if any PR event for this activity matches the selected sport
-      const activityEvents = allPREvents.filter(event => event.activity_key === stat.activity_key);
-      return activityEvents.some(event => event.sport === selectedSport);
-    }), 
-    [prStats, allPREvents, selectedSport]
-  );
-
-  // Reason: Filter PR events using direct sport field (much more efficient)
-  const filteredPREvents = useMemo(() => 
-    allPREvents.filter(event => event.sport === selectedSport), 
+  const filteredPREvents = useMemo(() =>
+    allPREvents.filter(event => asErgSport(event.sport) === selectedSport),
     [allPREvents, selectedSport]
   );
+  const filteredPRStats = useMemo(() => {
+    const activityKeys = new Set(filteredPREvents.map(event => event.activity_key));
+    return prStats.filter(stat => activityKeys.has(stat.activity_key));
+  }, [prStats, filteredPREvents]);
 
   // Reason: Memoize loadDashboardData to prevent unnecessary recreations
   const loadDashboardData = useCallback(async () => {
@@ -150,35 +147,9 @@ export const DashboardPage: React.FC = () => {
       
       // Reason: Try to get cached data first for instant response
       const cachedResults = await cacheService.getCachedData<StoredResult[]>(user.uid, 'allResults');
-      const cachedStats = await cacheService.getCachedData<DashboardStats>(user.uid, 'dashboardStats');
-      
-      if (cachedResults && cachedStats) {
-        console.log('Using cached dashboard data');
-        setAllResults(cachedResults);
-        setStats(cachedStats);
-        
-        // Load PR events (might be cached too)
-        const prEvents = await getPREvents();
-        setAllPREvents(prEvents);
-        
-        setLoading(false);
-        return;
-      }
-      
-      // Reason: Load fresh data if not cached
-      console.log('Loading fresh dashboard data from database');
-      
-      // Load all results once and derive everything from that
-      const results = await firebaseService.getAllResults(user.uid);
+      const results = cachedResults ?? await firebaseService.getAllResults(user.uid);
       setAllResults(results);
-      
-      // Cache the results for future use
-      await cacheService.setCachedData(user.uid, 'allResults', results);
-      
-      // Calculate and cache stats (full stats, not filtered)
-      const calculatedStats = calculateStats(results);
-      setStats(calculatedStats);
-      await cacheService.setCachedData(user.uid, 'dashboardStats', calculatedStats);
+      if (!cachedResults) await cacheService.setCachedData(user.uid, 'allResults', results);
       
       // Load all PR events for the enhanced filtering
       const prEvents = await getPREvents();
@@ -191,7 +162,7 @@ export const DashboardPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.uid, firebaseService, cacheService, calculateStats, getPREvents]);
+  }, [user?.uid, firebaseService, cacheService, getPREvents]);
 
   // Reason: Use ref instead of state to avoid circular dependency
   useEffect(() => {
@@ -217,18 +188,17 @@ export const DashboardPage: React.FC = () => {
     }
   }, [user?.uid, cacheService]);
 
-  const handleConnectConcept2 = () => {
-    console.log('Starting Concept2 OAuth flow');
-    // Clear the connection expired flag when user initiates reconnection
-    clearConnectionExpired();
-    
+  const handleConnectConcept2 = async () => {
+    setConnecting(true);
+    setConnectionError(null);
     try {
-      const authUrl = concept2Api.generateAuthUrl();
-      console.log('Generated OAuth URL, redirecting to Concept2');
-      window.location.href = authUrl;
+      const redirectUri = window.location.origin + '/auth/callback';
+      const attempt = await cloudFunctions.beginConcept2Connection(redirectUri);
+      clearConnectionExpired();
+      window.location.assign(attempt.authorizationUrl);
     } catch (error) {
-      console.error('Error generating OAuth URL:', error);
-      // Don't show technical error to user
+      setConnectionError(error instanceof Error ? error.message : 'Unable to connect to Concept2.');
+      setConnecting(false);
     }
   };
 
@@ -265,6 +235,7 @@ export const DashboardPage: React.FC = () => {
   if (!concept2Connected) {
     return (
       <div className="max-w-2xl mx-auto text-center">
+        <div className="mb-5 flex justify-end"><RowingReviewLink /></div>
         <div className="bg-white rounded-2xl p-8 shadow-lg border border-slate-200">
           <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-teal-500 rounded-full 
                          flex items-center justify-center mx-auto mb-6">
@@ -284,15 +255,18 @@ export const DashboardPage: React.FC = () => {
           
           <button
             onClick={handleConnectConcept2}
+            disabled={connecting}
             className="bg-gradient-to-r from-blue-500 to-teal-500 text-white font-semibold 
                      py-3 px-8 rounded-xl hover:from-blue-600 hover:to-teal-600 
                      transition-all duration-200 transform hover:scale-105
                      flex items-center space-x-3 mx-auto"
           >
             <Link className="w-5 h-5" />
-            <span>{connectionExpired ? 'Reconnect to Concept2' : 'Connect to Concept2'}</span>
+            <span>{connecting ? 'Connecting…' : connectionExpired ? 'Reconnect to Concept2' : 'Connect to Concept2'}</span>
           </button>
           
+          {connectionError && <p role="alert" className="mt-4 text-sm text-red-700">{connectionError}</p>}
+
           <p className="text-sm text-slate-500 mt-4">
             You'll be redirected to Concept2 to authorize the connection.
           </p>
@@ -328,6 +302,7 @@ export const DashboardPage: React.FC = () => {
       )}
 
       <div className="space-y-8">
+        <div className="flex justify-end"><RowingReviewLink /></div>
         {/* Sport Filter - Full Width with Icons */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
           <div className="grid grid-cols-3 gap-4">

@@ -16,10 +16,13 @@ export interface Concept2Result {
   timezone: string | null;
   date_utc: string | null;
   distance: number;
-  type: 'rower' | 'skierg' | 'bikeerg';
+  type: string;
   time: number;
   time_formatted: string;
   workout_type: string;
+  rest_time?: number | null;
+  rest_distance?: number | null;
+  workout?: { intervals?: unknown[] } | null;
   source: string;
   weight_class: string;
   verified: boolean;
@@ -69,37 +72,14 @@ export interface PREvent {
   user_id: string;
   results_id: string;           // Reference to original result
   activity_key: string;         // Links to pr_types.activity_key
-  sport: 'rower' | 'skierg' | 'bikeerg'; // NEW: Sport field for efficient filtering
+  sport: string;
   pr_scope: string[];          // ["all-time", "season-2025", "year-2024"]
   metric_type: string;
   metric_value: number;        // Time in seconds OR distance in meters
-  achieved_at: string;         // ISO timestamp
+  achieved_at: string;         // As recorded in the Concept2 workout date field
   season_identifier: string;   // "2025" (end year of season)
   previous_record: any;
   pace_per_500m: number | null;
   created_at: any; // Firestore timestamp
   updated_at: any; // Firestore timestamp
-}
-
-export interface SlackNotificationPayload {
-  type: 'new_user' | 'error' | 'pb_image_saved';
-  
-  // Common fields (optional, but useful for context)
-  userId?: string; // Firebase User ID (internal, non-identifiable)
-
-  // Specific details based on the 'type'
-  details?: {
-    // For 'new_user'
-    authProvider?: string; // e.g., 'Google'
-
-    // For 'error'
-    errorMessage?: string;
-    errorStack?: string; // Full stack trace
-    context?: string; // e.g., 'Cloud Function: initialDataLoad', 'Frontend: DashboardPage'
-
-    // For 'pb_image_saved'
-    imageUrl?: string; // Public URL of the saved image
-    sport?: string; // e.g., 'Row', 'Bike', 'Ski'
-    userDisplayName?: string; // User's display name (non-sensitive)
-  };
 }

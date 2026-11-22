@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Concept2ApiService } from '../services/concept2Api';
 import { CloudFunctionsService } from '../services/cloudFunctions';
 import { FirebaseService } from '../services/firebaseService';
 import { DataCacheService } from '../services/dataCacheService';
@@ -11,13 +10,12 @@ import { CheckCircle, AlertCircle } from 'lucide-react';
 export const AuthCallbackPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, loading, storeConcept2Tokens } = useAuth();
+  const { user, loading, markConcept2Connected } = useAuth();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('Connecting your account...');
   
   const hasProcessed = useRef(false);
 
-  const concept2Api = Concept2ApiService.getInstance();
   const cloudFunctions = CloudFunctionsService.getInstance();
   const firebaseService = FirebaseService.getInstance();
   const cacheService = DataCacheService.getInstance();
@@ -66,29 +64,14 @@ export const AuthCallbackPage: React.FC = () => {
       console.log(`User authenticated: ${user!.uid}`);
       setMessage('Securing your connection...');
       
-      // Exchange code for tokens
-      const tokens = await concept2Api.exchangeCodeForToken(code, state);
-      console.log('Token exchange successful');
-      
-      // Store tokens in Firebase
-      await storeConcept2Tokens(tokens);
-      console.log('Token storage successful');
-      
-      // CRITICAL FIX: Force refresh Firebase ID token and wait for it to complete
-      // This ensures the token is fresh and valid for Cloud Function calls
-      try {
-        console.log('Forcing Firebase ID token refresh...');
-        const freshIdToken = await user!.getIdToken(true);
-        console.log(`Firebase ID token refreshed successfully, length: ${freshIdToken.length}`);
-        
-        // Add a longer delay to ensure the token is fully propagated
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        console.log('Token propagation delay completed');
-      } catch (tokenError) {
-        console.error(`Critical error refreshing ID token: ${tokenError instanceof Error ? tokenError.message : 'Unknown error'}`);
-        throw new Error('Failed to refresh authentication token for Cloud Function access');
-      }
-      
+      window.history.replaceState(window.history.state, '', '/auth/callback');
+
+      // The callable verifies and consumes the state for the signed-in Firebase account.
+      await cloudFunctions.completeConcept2Connection(code, state);
+      markConcept2Connected();
+      await firebaseService.createUserProfile(user!.uid);
+      await cacheService.invalidateCache(user!.uid, 'userProfile');
+
       setMessage('Loading your workout history...');
       
       // Trigger initial data load via Cloud Function (FAST - no PR processing)
@@ -152,21 +135,6 @@ export const AuthCallbackPage: React.FC = () => {
           await cacheService.invalidateCache(user!.uid, 'prStats');
           await cacheService.invalidateCache(user!.uid, 'prEvents');
           
-          // Send Slack notification for new user (without PII)
-          try {
-            await cloudFunctions.sendSlackNotification({
-              type: 'new_user',
-              userId: user!.uid,
-              details: {
-                authProvider: user!.providerData[0]?.providerId === 'google.com' ? 'Google' : 'Unknown',
-              },
-            });
-            console.log('New user Slack notification sent.');
-          } catch (slackError) {
-            console.error('Failed to send new user Slack notification:', slackError);
-            // Don't block user flow if Slack notification fails
-          }
-          
           setStatus('success');
           setMessage(`Welcome to PB Dash! We've imported ${syncResponse.totalResultsCount} workouts and set up ${prResponse.totalPRsProcessed} personal bests.`);
         } catch (prError) {
@@ -184,16 +152,12 @@ export const AuthCallbackPage: React.FC = () => {
         // RETURNING USER: Process new results if any
         console.log('Returning user detected - processing new results');
         
-        if (syncResponse.newResultsCount > 0) {
+        if (syncResponse.newResultsCount > 0 || syncResponse.prRepairPending) {
           setMessage('Organizing your personal bests...');
           
           try {
-            // For returning users with new results, we need to use processAllResultsForPRs
-            // because initialDataLoad doesn't provide newResultIds, and we need to ensure
-            // the new results are properly processed for PRs
             console.log(`Processing ${syncResponse.newResultsCount} new results for PRs`);
-            console.log('Calling processAllResultsForPRs Cloud Function...');
-            const prResponse = await cloudFunctions.processAllResultsForPRs(user!.uid);
+            const prResponse = await cloudFunctions.processNewResultsAndRecalculate(user!.uid);
             console.log(`PR processing completed: ${prResponse.totalPRsProcessed} total PRs across ${prResponse.activitiesProcessed} activities`);
             
             // Reason: Invalidate PR cache after processing to ensure fresh data on dashboard

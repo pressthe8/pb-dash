@@ -3,29 +3,18 @@ import { ResponsiveLine } from '@nivo/line';
 import { PREvent } from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
 import { Trophy, TrendingUp } from 'lucide-react';
+import { formatWorkoutDate, workoutCalendar } from '../../functions/src/workoutCalendar';
 
 interface PRProgressionChartProps {
   events: PREvent[];
-  activityName: string;
-  activityKey: string;
 }
 
-export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
-  events,
-  activityName,
-  activityKey
-}) => {
-  // Helper function to get season identifier from date
-  const getSeasonIdentifier = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = date.getMonth(); // 0-based (0 = January)
-    
-    // If January-April, use current year
-    // If May-December, use next year
-    const seasonEndYear = month < 4 ? year : year + 1;
-    return seasonEndYear.toString();
-  };
+const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+const formatMonthTick = (value: unknown) => value instanceof Date ? monthLabel.format(value) : String(value);
+const formatYearTick = (value: unknown) => value instanceof Date ? String(value.getUTCFullYear()) : String(value);
+const formatDay = (value: unknown) => value instanceof Date ? value.toISOString().slice(0, 10) : String(value);
 
+export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({ events }) => {
   // Helper function to format season display
   const formatSeasonDisplay = (seasonId: string): string => {
     const endYear = parseInt(seasonId);
@@ -42,50 +31,26 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
   const chartData = useMemo(() => {
     if (!events || events.length === 0) return [];
 
-    // Sort events by date
-    const sortedEvents = [...events].sort((a, b) => 
-      new Date(a.achieved_at).getTime() - new Date(b.achieved_at).getTime()
-    );
-
     // Get profile setting from localStorage (set by ProfilePage)
     const profileSeasonView = localStorage.getItem('pr_view_mode') === 'season';
 
-    // Create data points for the chart using pace
-    const dataPoints = sortedEvents
-      .filter(event => event.pace_per_500m !== null) // Only include events with pace data
-      .map((event, index) => {
-        const eventDate = new Date(event.achieved_at);
+    const dataPoints = events.flatMap(event => {
+      const calendar = workoutCalendar(event.achieved_at);
+      return calendar && event.pace_per_500m !== null ? [{ event, calendar }] : [];
+    }).sort((a, b) => a.calendar.sortKey.localeCompare(b.calendar.sortKey))
+      .map(({ event, calendar }) => {
         const isAllTime = event.pr_scope.includes('all-time');
-        
-        // Determine if this is an intermediate PR based on profile settings
-        let isIntermediatePR = false;
-        let intermediatePRLabel = '';
-        
-        if (profileSeasonView) {
-          // Check for season PR
-          const seasonScope = event.pr_scope.find(scope => scope.startsWith('season-'));
-          if (seasonScope && !isAllTime) {
-            isIntermediatePR = true;
-            const seasonId = seasonScope.split('-')[1];
-            intermediatePRLabel = `${formatSeasonDisplay(seasonId)} PB`;
-          }
-        } else {
-          // Check for year PR
-          const yearScope = event.pr_scope.find(scope => scope.startsWith('year-'));
-          if (yearScope && !isAllTime) {
-            isIntermediatePR = true;
-            const year = yearScope.split('-')[1];
-            intermediatePRLabel = `${year} PB`;
-          }
-        }
+        const scope = profileSeasonView ? `season-${calendar.season}` : `year-${calendar.year}`;
+        const isIntermediatePR = !isAllTime && event.pr_scope.includes(scope);
+        const period = profileSeasonView ? formatSeasonDisplay(calendar.season) : calendar.year;
 
         return {
-          x: eventDate.toISOString().split('T')[0], // YYYY-MM-DD format
+          x: calendar.day,
           y: event.pace_per_500m! / 10, // Convert tenths to seconds for display
-          event: event,
-          isAllTime: isAllTime,
-          isIntermediatePR: isIntermediatePR,
-          intermediatePRLabel: intermediatePRLabel
+          event,
+          isAllTime,
+          isIntermediatePR,
+          intermediatePRLabel: `${period} PB`,
         };
       });
 
@@ -101,8 +66,9 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
   const getAxisConfiguration = useMemo(() => {
     if (!chartData[0] || chartData[0].data.length === 0) {
       return {
-        format: '%b %Y',
+        format: formatMonthTick,
         tickValues: 'every 2 months',
+        tickRotation: 0,
         legend: 'Date',
         legendOffset: 46,
         legendPosition: 'middle' as const
@@ -126,7 +92,7 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
     if (timeSpanYears > 5) {
       // Long time span (5+ years): Show years only
       config = {
-        format: '%Y',
+        format: formatYearTick,
         tickValues: isMobile ? 'every 2 years' : 'every 1 year',
         legend: 'Year',
         legendOffset: isMobile ? 50 : 46,
@@ -135,7 +101,7 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
     } else if (timeSpanYears > 2) {
       // Medium time span (2-5 years): Show every 6 months
       config = {
-        format: '%b %Y',
+        format: formatMonthTick,
         tickValues: isMobile ? 'every 1 year' : 'every 6 months',
         legend: 'Date',
         legendOffset: isMobile ? 50 : 46,
@@ -144,7 +110,7 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
     } else if (timeSpanYears > 1) {
       // Short-medium time span (1-2 years): Show every 3 months
       config = {
-        format: '%b %Y',
+        format: formatMonthTick,
         tickValues: isMobile ? 'every 6 months' : 'every 3 months',
         legend: 'Date',
         legendOffset: isMobile ? 50 : 46,
@@ -153,7 +119,7 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
     } else {
       // Short time span (<1 year): Show monthly
       config = {
-        format: '%b %Y',
+        format: formatMonthTick,
         tickValues: isMobile ? 'every 2 months' : 'every 1 month',
         legend: 'Date',
         legendOffset: isMobile ? 50 : 46,
@@ -161,13 +127,8 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
       };
     }
     
-    // Add rotation for mobile if we have many ticks
-    if (isMobile && (dataCount > 6 || timeSpanYears > 1)) {
-      config.tickRotation = -45;
-      config.legendOffset = 60; // More space for rotated labels
-    }
-    
-    return config;
+    const rotateTicks = isMobile && (dataCount > 6 || timeSpanYears > 1);
+    return { ...config, tickRotation: rotateTicks ? -45 : 0, legendOffset: rotateTicks ? 60 : config.legendOffset };
   }, [chartData]);
 
   // Smart vertical axis configuration based on data range and screen size
@@ -231,7 +192,7 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
   }, [getAxisConfiguration]);
 
   // Custom points layer function
-  const CustomPointsLayer = ({ points, xScale, yScale }: any) => {
+  const CustomPointsLayer = ({ points }: any) => {
     return (
       <g>
         {points.map((point: any) => {
@@ -321,11 +282,7 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
           </span>
         </div>
         <div className="text-sm text-slate-600">
-          {new Date(event.achieved_at).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-          })}
+          {formatWorkoutDate(event.achieved_at)}
         </div>
         <div className="text-xs text-slate-500 mt-1">
           Pace: {formatTime(event.pace_per_500m!)}/500m
@@ -355,10 +312,8 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
     );
   }
 
-  // Filter events with pace data
-  const eventsWithPace = events.filter(event => event.pace_per_500m !== null);
-  
-  if (eventsWithPace.length === 0) {
+  const dataPoints = chartData[0]?.data ?? [];
+  if (dataPoints.length === 0) {
     return (
       <div className="h-64 flex items-center justify-center text-slate-500">
         <div className="text-center">
@@ -370,8 +325,8 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
     );
   }
 
-  if (eventsWithPace.length === 1) {
-    const event = eventsWithPace[0];
+  if (dataPoints.length === 1) {
+    const { event } = dataPoints[0];
     return (
       <div className="h-64 flex items-center justify-center text-slate-500">
         <div className="text-center">
@@ -379,7 +334,7 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
           <p className="font-medium text-slate-700">Single Result</p>
           <p className="text-sm">Pace: {formatTime(event.pace_per_500m!)}/500m</p>
           <p className="text-xs text-slate-500 mt-1">
-            {new Date(event.achieved_at).toLocaleDateString()}
+            {formatWorkoutDate(event.achieved_at)}
           </p>
         </div>
       </div>
@@ -394,10 +349,11 @@ export const PRProgressionChart: React.FC<PRProgressionChartProps> = ({
         xScale={{
           type: 'time',
           format: '%Y-%m-%d',
-          useUTC: false,
+          // Plot calendar days on a UTC scale so browser offsets and DST cannot shift them.
+          useUTC: true,
           precision: 'day',
         }}
-        xFormat="time:%Y-%m-%d"
+        xFormat={formatDay}
         yScale={{
           type: 'linear',
           min: 'auto',

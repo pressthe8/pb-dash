@@ -1,9 +1,10 @@
-import React, { useState, useRef } from 'react';
-import { Download, Share2, Image as ImageIcon, Loader2, ExternalLink, Copy, RefreshCw } from 'lucide-react';
+import React, { useState } from 'react';
+import { Download, Image as ImageIcon, Loader2, ExternalLink, Copy, RefreshCw } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { CloudFunctionsService } from '../services/cloudFunctions';
 import { PRStats, SportType, SPORT_MAPPING } from '../types/personalRecords';
 import { formatTime } from '../utils/timeFormatting';
+import { formatWorkoutDate, seasonEndYear } from '../../functions/src/workoutCalendar';
 
 interface PRImageGeneratorProps {
   prStats: PRStats[];
@@ -71,7 +72,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const previewImageUrl = uploadedImageUrl || generatedImageUrl;
 
   const { user } = useAuth();
   const cloudFunctions = CloudFunctionsService.getInstance();
@@ -79,11 +80,8 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
   // Get current season identifier
   const getCurrentSeason = (): string => {
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth(); // 0-based
-    const seasonEndYear = month < 4 ? year : year + 1;
-    const seasonStartYear = seasonEndYear - 1;
-    return `${seasonStartYear.toString().slice(-2)}/${seasonEndYear.toString().slice(-2)}`;
+    const endYear = seasonEndYear(now.getFullYear(), now.getMonth() + 1);
+    return `${String(endYear - 1).slice(-2)}/${String(endYear).slice(-2)}`;
   };
 
   // DYNAMIC FILTERING: Get only events that have data
@@ -115,11 +113,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
 
   // Format date as DD/MM/YY
   const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = date.getFullYear().toString().slice(-2);
-    return `${day}/${month}/${year}`;
+    return formatWorkoutDate(dateString, 'en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
   };
 
   // Get stat for specific event
@@ -242,26 +236,9 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
       if (user?.uid) {
         setIsUploading(true);
         try {
-          const uploadResult = await cloudFunctions.uploadPbGrid(user.uid, imageUrl);
+          const uploadResult = await cloudFunctions.uploadPbGrid(user.uid, imageUrl, selectedSport);
           setUploadedImageUrl(uploadResult.imageUrl);
           console.log('Image uploaded to Firebase Storage:', uploadResult.imageUrl);
-          
-          // Send Slack notification for successful image save
-          try {
-            await cloudFunctions.sendSlackNotification({
-              type: 'pb_image_saved',
-              userId: user.uid,
-              details: {
-                imageUrl: uploadResult.imageUrl,
-                sport: SPORT_MAPPING[selectedSport],
-                userDisplayName: userDisplayName
-              }
-            });
-            console.log('PB image save Slack notification sent successfully');
-          } catch (slackError) {
-            console.error('Failed to send PB image save Slack notification:', slackError);
-            // Don't block user flow if Slack notification fails
-          }
         } catch (uploadError) {
           console.error('Error uploading image:', uploadError);
           setUploadError(uploadError instanceof Error ? uploadError.message : 'Failed to upload image');
@@ -293,21 +270,6 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
   const openImageUrl = () => {
     if (!uploadedImageUrl) return;
     window.open(uploadedImageUrl, '_blank');
-  };
-
-  const copyToClipboard = async () => {
-    const imageUrl = uploadedImageUrl || generatedImageUrl;
-    if (!imageUrl) return;
-
-    try {
-      const response = await fetch(imageUrl);
-      const blob = await response.blob();
-      await navigator.clipboard.write([
-        new ClipboardItem({ 'image/png': blob })
-      ]);
-    } catch (error) {
-      console.error('Error copying to clipboard:', error);
-    }
   };
 
   const copyBBCode = async () => {
@@ -434,7 +396,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
         )}
 
         {/* Generated Image Preview - Show first when available */}
-        {(generatedImageUrl || uploadedImageUrl) && (
+        {previewImageUrl && (
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-slate-900">Generated Image</h3>
@@ -447,7 +409,7 @@ export const PRImageGenerator: React.FC<PRImageGeneratorProps> = ({
             </div>
             <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
               <img 
-                src={uploadedImageUrl || generatedImageUrl} 
+                src={previewImageUrl}
                 alt="Generated PB Image" 
                 className="max-w-full h-auto rounded-lg shadow-sm"
                 style={{ imageRendering: 'pixelated' }}

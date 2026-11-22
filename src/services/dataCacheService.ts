@@ -20,8 +20,7 @@ export type CacheableDataType =
   | 'allResults'
   | 'prStats' 
   | 'prEvents'
-  | 'userProfile'
-  | 'dashboardStats';
+  | 'userProfile';
 
 // Cache data interfaces
 export interface CachedData {
@@ -29,12 +28,6 @@ export interface CachedData {
   prStats?: PRStats[];
   prEvents?: PREvent[];
   userProfile?: UserProfile;
-  dashboardStats?: {
-    totalWorkouts: number;
-    totalDistance: number;
-    totalTime: number;
-    averageDistance: number;
-  };
 }
 
 export class DataCacheService {
@@ -374,7 +367,7 @@ export class DataCacheService {
    */
   async restoreFromSessionStorage(userId: string): Promise<void> {
     try {
-      const dataTypes: CacheableDataType[] = ['allResults', 'prStats', 'prEvents', 'userProfile', 'dashboardStats'];
+      const dataTypes: CacheableDataType[] = ['allResults', 'prStats', 'prEvents', 'userProfile'];
       
       for (const dataType of dataTypes) {
         const key = this.getSessionStorageKey(userId, dataType);
