@@ -15,7 +15,7 @@
 .rowing-review .mast, .rowing-review .brand, .rowing-review .header-actions { display: flex; align-items: center; }
 .rowing-review .mast { justify-content: space-between; gap: 15px; margin-bottom: 24px; }
 .rowing-review .brand { gap: 12px; }
-.rowing-review .review-logo { flex: none; width: 42px; height: 42px; }
+.rowing-review .review-logo { display: block; flex: none; width: 42px; height: 42px; border-radius: 8px; }
 .rowing-review .wordmark { display: block; color: var(--muted); font: 600 .7rem/1.3 var(--mono); letter-spacing: .1em; }
 .rowing-review h1 { margin: 2px 0 0; font-size: clamp(1rem, 2.6vw, 1.6rem); letter-spacing: -.045em; line-height: 1.15; }
 .rowing-review .mast-tools, .rowing-review .profile-picker { display: flex; align-items: center; }

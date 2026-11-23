@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Artwork } from '../../components/Artwork';
-import { FlamingStopwatchLogo } from '../../components/FlamingStopwatchLogo';
+import { BrandMark } from '../../components/Brand';
 import { drawDistance, drawLaps, drawRadar, drawWake, shareReviewPoster } from './reviewArt';
 import { REVIEW_TITLE, REVIEW_YEAR } from './reviewConfig';
 import { DAYS_IN_REVIEW, type LongestRow, type ReviewSummary, type YearTotals } from './reviewData';
@@ -29,7 +29,7 @@ export function ReviewFrame({ children, controls, footerActions, sample }: { chi
       <div className="shell">
         <header className="mast">
           <div className="brand">
-            <Link to="/dashboard" aria-label="Back to Dashboard"><FlamingStopwatchLogo className="review-logo" /></Link>
+            <Link to="/dashboard" aria-label="Back to Dashboard"><BrandMark className="review-logo" size={42} /></Link>
             <div><span className="wordmark">{sample ? 'PB Dash / Sample data' : 'PB Dash'}</span><h1>{REVIEW_TITLE}</h1></div>
           </div>
           {controls && <div className="mast-tools">{controls}</div>}

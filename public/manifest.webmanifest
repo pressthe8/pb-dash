@@ -1,0 +1,28 @@
+{
+  "id": "/",
+  "name": "PB Dash",
+  "short_name": "PB Dash",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#110f19",
+  "background_color": "#110f19",
+  "icons": [
+    {
+      "src": "/icons/pb-dash-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/pb-dash-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/pb-dash-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

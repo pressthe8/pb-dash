@@ -10,7 +10,7 @@ import { TrainingRadar, WakeArt } from '../components/WorkoutArt';
 import { PersonalBestsTableView } from '../components/PersonalBestsTableView';
 import { StoredResult } from '../types/concept2';
 import { PREvent, SportType, SPORT_MAPPING, UserProfile } from '../types/personalRecords';
-import { formatTime } from '../utils/timeFormatting';
+import { formatDuration } from '../utils/timeFormatting';
 import { asErgSport } from '../../functions/src/workoutSport';
 import { REVIEW_PATH, REVIEW_TITLE } from '../features/rowingReview/reviewConfig';
 import { Activity, AlertCircle, ArrowRight, ArrowUpRight, Bike, Clock3, Link2, Mountain, Ruler, Waves } from 'lucide-react';
@@ -32,10 +32,14 @@ function ReviewCard() {
   );
 }
 
-function measureDistance(meters: number) {
-  return meters >= 1000
-    ? { value: numberFormat.format(meters / 1000), unit: 'km' }
-    : { value: numberFormat.format(meters), unit: 'm' };
+function measureDistance(meters: number, { roundDown = false } = {}) {
+  const useKilometers = meters >= 1000;
+  const distance = useKilometers ? meters / 1000 : meters;
+
+  return {
+    value: numberFormat.format(roundDown ? Math.floor(distance) : distance),
+    unit: useKilometers ? 'km' : 'm',
+  };
 }
 
 interface DashboardStats {
@@ -246,8 +250,8 @@ export const DashboardPage: React.FC = () => {
 
   const metrics = [
     { label: 'Total workouts', icon: Activity, value: numberFormat.format(filteredStats.totalWorkouts), unit: '' },
-    { label: 'Total distance', icon: Ruler, ...measureDistance(filteredStats.totalDistance) },
-    { label: 'Total time', icon: Clock3, value: formatTime(filteredStats.totalTime), unit: '' },
+    { label: 'Total distance', icon: Ruler, ...measureDistance(filteredStats.totalDistance, { roundDown: true }) },
+    { label: 'Total time', icon: Clock3, value: formatDuration(filteredStats.totalTime), unit: '' },
     { label: 'Average distance', icon: Ruler, ...measureDistance(filteredStats.averageDistance) },
   ];
 
