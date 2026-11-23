@@ -1,5 +1,7 @@
 # Concept2 Rowing Data Visualization App - Task Log
 
+> Historical record. Its pending items and architecture notes describe earlier implementations. See [task history](TASK.md) and [current architecture](architecture/README.md).
+
 ## Project Overview
 A modern web application for visualizing personal rowing data from the Concept2 Logbook API with Firebase backend.
 

@@ -1,10 +1,14 @@
 import { ArrowUpRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
+export function BrandMark({ size = 35, className }: { size?: number; className?: string }) {
+  return <img className={className} src="/icons/pb-dash-192.png" alt="" width={size} height={size} />;
+}
+
 export function Brand({ to }: { to: string }) {
   return (
     <Link className="pb-brand" to={to}>
-      <span className="pb-brand-mark"><img src="/IMG_9029.PNG" alt="" width="35" height="35" /></span>
+      <BrandMark className="pb-brand-mark" />
       <span>PB Dash</span>
     </Link>
   );

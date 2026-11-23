@@ -34,3 +34,14 @@ export const formatTime = (totalTenthsOfSeconds: number): string => {
     return `${minutes}:${wholeSeconds.toString().padStart(2, '0')}.${tenths}`;
   }
 };
+
+export function formatDuration(totalTenthsOfSeconds: number): string {
+  const totalMinutes = Number.isFinite(totalTenthsOfSeconds) && totalTenthsOfSeconds > 0
+    ? Math.floor(totalTenthsOfSeconds / 600)
+    : 0;
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor(totalMinutes / 60) % 24;
+  const minutes = totalMinutes % 60;
+
+  return `${days}d ${hours}h ${minutes}m`;
+}
